@@ -1,2 +1,3 @@
 # nim-raytracer
-Writing a fully-featured raytracer from the groud up in Nim
+
+Writing a fully-featured raytracer from the ground up in Nim.
