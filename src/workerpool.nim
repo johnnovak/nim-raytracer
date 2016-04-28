@@ -16,7 +16,7 @@ type
   CmdChannel = Channel[WorkerState]
   AckChannel = Channel[bool]
 
-  WorkerArgs[W, R] = tuple[workerId: int,
+  WorkerArgs[W, R] = tuple[workerId: Natural,
                            workProc: proc (msg: W): R,
                            workQueue: ptr WorkQueueChannel[W],
                            resultQueue: ptr ResultQueueChannel[R],
@@ -26,7 +26,7 @@ type
   Worker[W, R] = Thread[WorkerArgs[W, R]]
 
   WorkerPool*[W, R] = object
-    numWorkers: int
+    numWorkers: Natural
     workers: seq[Worker[W, R]]
     workQueue: WorkQueueChannel[W]
     resultQueue: ResultQueueChannel[R]
@@ -59,7 +59,7 @@ proc doWork[W, R](t: WorkerArgs[W, R]) {.thread.} =
 
       let (msgAvailable, msg) = t.workQueue[].tryRecv()
       if msgAvailable:
-        trace "[" & $t.workerId & "]" & " Work message received:   " & $msg
+        trace "[" & $t.workerId & "]" & " Work message received:   "# & $msg
 
         let response = t.workProc(msg)
 

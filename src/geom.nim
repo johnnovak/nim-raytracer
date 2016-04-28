@@ -1,13 +1,12 @@
 import math
 import glm
-
-import mathutils
+import color, mathutils
 
 
 type
   Object* = ref object of RootObj
     o*: Vec3[float]
-    color*: Vec3[float32]
+    color*: Color
 
   Sphere* = ref object of Object
     r*: float
@@ -20,6 +19,18 @@ type
     o*, dir*: Vec3[float]   # origin and normalized direction vector
     objHit*: Object         # object hit by the ray
     tHit*: float            # point t on the ray where it hit the object
+
+
+# TODO
+proc `$`(o: Object): string = ""
+
+# TODO
+proc `$`(s: Sphere): string =
+  result = "(Sphere: r=" & $s.r & ")"
+
+# TODO
+proc `$`(p: Plane): string =
+  result = "(Sphere: n=" & $p.n & ")"
 
 
 method intersect*(o: Object, r: var Ray): bool {.base.} = false
@@ -59,10 +70,10 @@ method intersect*(p: Plane, r: var Ray): bool =
       result = true
 
 
-method getShade*(o: Object, r: Ray): Vec3[float32] {.base.} =
-  vec3[float32](0.0, 0.0, 0.0)
+method getShade*(o: Object, r: Ray): Color {.base.} =
+  color(0.0, 0.0, 0.0)
 
-method getShade*(s: Sphere, r: Ray): Vec3[float32] =
+method getShade*(s: Sphere, r: Ray): Color =
   var
     hit = r.o + (r.dir * r.tHit)
     n = (s.o - hit).normalize
@@ -71,7 +82,7 @@ method getShade*(s: Sphere, r: Ray): Vec3[float32] =
   result = s.color * atten
 
 
-method getShade*(p: Plane, r: Ray): Vec3[float32] =
+method getShade*(p: Plane, r: Ray): Color =
 
   proc modulo(x: float): float = abs(x - floor(x))
 
@@ -90,10 +101,10 @@ method getShade*(p: Plane, r: Ray): Vec3[float32] =
 
 when isMainModule:
   var
-    s = Sphere(o: vec3[float](7.0, 9.0, -5.0), r: 4.4)
+    s = Sphere(o: vec3(7.0, 9.0, -5.0), r: 4.4)
 
-    r = Ray(o: vec3[float](7.0, 9.0, 0.0),
-            dir: vec3[float](0.0, 0.0, -1.0))
+    r = Ray(o: vec3(7.0, 9.0, 0.0),
+            dir: vec3(0.0, 0.0, -1.0))
 
     intersects = s.intersect(r)
 

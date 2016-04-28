@@ -1,4 +1,5 @@
-import workerpool, os
+import os
+import workerpool
 
 type
   WorkMsg = object
@@ -15,6 +16,7 @@ proc doWork(msg: WorkMsg): ResponseMsg =
 
 
 var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, 8)
+wp.run()
 
 const numMessages = 500
 
@@ -22,12 +24,14 @@ for i in 0..<numMessages:
   let msg = WorkMsg(text: $i)
   wp.queueWork(msg)
 
+echo "messages created"
+
 var numResponses = 0
 while numResponses != numMessages:
   cpuRelax()
   var (available, response) = wp.receiveResult()
   if (available):
-#    echo "Received response:    \t" & $ response
+    echo "Received response:    \t" & $ response
     inc numResponses
 
 wp.close()
