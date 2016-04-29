@@ -1,12 +1,12 @@
 import math
 import glm
-import color, mathutils
+import mathutils
 
 
 type
   Object* = ref object of RootObj
     o*: Vec3[float]
-    color*: Color
+    color*: Vec3[float]
 
   Sphere* = ref object of Object
     r*: float
@@ -21,16 +21,32 @@ type
     tHit*: float            # point t on the ray where it hit the object
 
 
-# TODO
-proc `$`(o: Object): string = ""
+method `$`*(o: Object): string {.base.} = ""
 
-# TODO
-proc `$`(s: Sphere): string =
-  result = "(Sphere: r=" & $s.r & ")"
+method `$`*(s: Sphere): string =
+  result = "(Sphere: o=" & $s.o & ", color=" & $s.color &
+           ", r=" & $s.r & ")"
 
-# TODO
-proc `$`(p: Plane): string =
-  result = "(Sphere: n=" & $p.n & ")"
+method `$`*(p: Plane): string =
+  result = "(Plane: o=" & $p.o & ", color=" & $p.color &
+           ", n=" & $p.n & ")"
+
+
+proc `$`*(r: Ray): string =
+  var objHit = if r.objHit == nil: "nil" else: $r.objHit
+  result = "(Ray: o=" & $r.o & ", dir=" & $r.dir &
+           ", objHit=" & objHit & ", tHit=" & $r.tHit & ")"
+
+
+method str*(o: Object): string = ""
+
+method str*(s: Sphere): string =
+  result = "(Sphere: o=" & $s.o & ", color=" & $s.color &
+           ", r=" & $s.r & ")"
+
+method str*(p: Plane): string =
+  result = "(Plane: o=" & $p.o & ", color=" & $p.color &
+           ", n=" & $p.n & ")"
 
 
 method intersect*(o: Object, r: var Ray): bool {.base.} = false
@@ -70,45 +86,28 @@ method intersect*(p: Plane, r: var Ray): bool =
       result = true
 
 
-method getShade*(o: Object, r: Ray): Color {.base.} =
-  color(0.0, 0.0, 0.0)
-
-method getShade*(s: Sphere, r: Ray): Color =
-  var
-    hit = r.o + (r.dir * r.tHit)
-    n = (s.o - hit).normalize
-    atten = n.dot(r.dir)
-
-  result = s.color * atten
-
-
-method getShade*(p: Plane, r: Ray): Color =
-
-  proc modulo(x: float): float = abs(x - floor(x))
-
-  var
-    hit = r.o + (r.dir * r.tHit)
-    d = p.o - hit
-    scale = 0.1
-    cx: int = if modulo(d.x * scale) < 0.5: 0 else: 1
-    cz: int = if modulo(d.z * scale) < 0.5: 0 else: 1
-    patt = cx xor cz
-
-  result = p.color * float32(patt)
-
-
 # Tests
 
 when isMainModule:
   var
-    s = Sphere(o: vec3(7.0, 9.0, -5.0), r: 4.4)
+    s = Sphere(o: vec3(7.0, 9.0, -5.0), color: vec3(0.0, 0.6, 0.2), r: 4.4)
+    r = Ray(o: vec3(7.0, 9.0, 0.0), dir: vec3(0.0, 0.0, -1.0))
+  echo r
 
-    r = Ray(o: vec3(7.0, 9.0, 0.0),
-            dir: vec3(0.0, 0.0, -1.0))
+  var
+    p = Plane(o: vec3(1.0, 2.0, 3.0),
+              color: vec3(0.2, 0.75, 0.1),
+              n: vec3(1.0, 0.0, 0.0))
 
     intersects = s.intersect(r)
 
   assert intersects == true
   assert r.objHit == s
+  var objHit = r.objHit
+  echo objHit.str
   assert eq(r.tHit, 0.6)
+
+  echo s
+  echo p
+  echo r
 

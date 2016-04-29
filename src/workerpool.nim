@@ -16,12 +16,13 @@ type
   CmdChannel = Channel[WorkerState]
   AckChannel = Channel[bool]
 
-  WorkerArgs[W, R] = tuple[workerId: Natural,
-                           workProc: proc (msg: W): R,
-                           workQueue: ptr WorkQueueChannel[W],
-                           resultQueue: ptr ResultQueueChannel[R],
-                           cmdChan: ptr CmdChannel,
-                           ackChan: ptr AckChannel]
+  WorkerArgs[W, R] = object
+    workerId: Natural
+    workProc: proc (msg: W): R
+    workQueue: ptr WorkQueueChannel[W]
+    resultQueue: ptr ResultQueueChannel[R]
+    cmdChan: ptr CmdChannel
+    ackChan: ptr AckChannel
 
   Worker[W, R] = Thread[WorkerArgs[W, R]]
 
@@ -34,42 +35,45 @@ type
     ackChannels: seq[AckChannel]
 
 
-proc doWork[W, R](t: WorkerArgs[W, R]) {.thread.} =
+proc doWork[W, R](a: WorkerArgs[W, R]) {.thread.} =
   var state = wsStop
 
   while true:
     case state:
     of wsStop:
-      let cmd = t.cmdChan[].recv()
+      let cmd = a.cmdChan[].recv()
       case cmd:
       of wsRun, wsShutdown:
         state = cmd
-        t.ackChan[].send(true)
+        a.ackChan[].send(true)
       else: discard
 
     of wsRun:
-      let (cmdAvailable, cmd) = t.cmdChan[].tryRecv()
+      let (cmdAvailable, cmd) = a.cmdChan[].tryRecv()
       if cmdAvailable:
         case cmd:
         of wsStop, wsShutdown:
           state = cmd
-          t.ackChan[].send(true)
+          a.ackChan[].send(true)
           continue
         else: discard
 
-      let (msgAvailable, msg) = t.workQueue[].tryRecv()
+      let (msgAvailable, msg) = a.workQueue[].tryRecv()
       if msgAvailable:
-        trace "[" & $t.workerId & "]" & " Work message received:   "# & $msg
+        trace "[" & $a.workerId & "]" &
+              " Work message received:   "# & $msg
 
-        let response = t.workProc(msg)
+        let response = a.workProc(msg)
 
-        trace "[" & $t.workerId & "]" & " Sending response:        " & $response
-        t.resultQueue[].send(response)
+        trace "[" & $a.workerId & "]" &
+              " Sending response:        " & $response
+
+        a.resultQueue[].send(response)
       else:
         cpuRelax()
 
     of wsShutdown:
-      trace "[" & $t.workerId & "]" & " Shutting down"
+      trace "[" & $a.workerId & "]" & " Shutting down"
       # TODO fully consume queue?
       return
 
@@ -92,9 +96,13 @@ proc createWorkers[W, R](w: var WorkerPool[W, R], workProc: proc (msg: W): R) =
   w.workers = newSeq[Worker[W, R]](w.numWorkers)
 
   for i in 0..<w.numWorkers:
-    let workerId = i
-    var args = (workerId, workProc, w.workQueue.addr, w.resultQueue.addr,
-                w.cmdChannels[i].addr, w.ackChannels[i].addr)
+    var args = WorkerArgs[W, R](
+      workerId: i,
+      workProc: workProc,
+      workQueue: w.workQueue.addr,
+      resultQueue: w.resultQueue.addr,
+      cmdChan: w.cmdChannels[i].addr,
+      ackChan: w.ackChannels[i].addr)
 
     createThread(w.workers[i], doWork, args)
 
@@ -143,12 +151,12 @@ proc stop*[W, R](w: var WorkerPool[W, R]) =
   w.sendCmd(wsStop)
   w.waitAck()
 
-
 proc drainChannel(c: Channel) =
   while true:
     let (available, msg) = c.tryRecv()
     if not available:
       break
+
 
 proc reset*[W, R](w: var WorkerPool[W, R]) =
   w.stop()

@@ -49,3 +49,4 @@ when isMainModule:
   echo f | 6
   echo f | (3, 2)
   echo formatSeconds(3723)
+

@@ -36,3 +36,4 @@ when isMainModule:
 
   assert eq(x1, 1.786737589984535)
   assert eq(x2, 1.149782767465722e-08)
+

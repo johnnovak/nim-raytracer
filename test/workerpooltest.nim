@@ -15,7 +15,7 @@ proc doWork(msg: WorkMsg): ResponseMsg =
   result = ResponseMsg(text: msg.text & " response", n: msg.text.len())
 
 
-var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, 8)
+var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork)
 wp.run()
 
 const numMessages = 500
