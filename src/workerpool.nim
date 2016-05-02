@@ -96,8 +96,14 @@ proc doWork[W, R](args: WorkerArgs[W, R]) {.thread.} =
       return
 
 
-proc poolSize[W, R](wp: var WorkerPool[W, R]): Natural =
+proc poolSize*[W, R](wp: var WorkerPool[W, R]): Natural =
   result = wp.workers.len()
+
+proc numActiveWorkers*[W, R](wp: var WorkerPool[W, R]): Natural =
+  result = wp.numActiveWorkers
+
+proc state*[W, R](wp: var WorkerPool[W, R]): WorkerState =
+  result = wp.state
 
 
 proc isReady*[W, R](wp: var WorkerPool[W, R]): bool =
@@ -210,7 +216,6 @@ proc reset*[W, R](wp: var WorkerPool[W, R]): bool =
   if not (wp.state == wsStopped and wp.isReady()):
     return false
 
-  # TODO allow only when global state = stopped
   trace "Resetting worker pool..."
   drainChannel(wp.workQueue)
   drainChannel(wp.resultQueue)
