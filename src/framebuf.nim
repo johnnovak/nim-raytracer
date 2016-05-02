@@ -5,7 +5,7 @@ import mathutils
 type
   Framebuf* = object
     w*, h*: int
-    data: seq[float]
+    data: seq[float32]
 
   FramebufRef* = ref Framebuf
 
@@ -14,15 +14,21 @@ proc newFramebuf*(w, h: int): FramebufRef =
   new(result)
   result.w = w
   result.h = h
-  result.data = newSeq[float](w * h * 3)
+  result.data = newSeq[float32](w * h * 3)
 
-proc set*(fb: var FramebufRef, x, y: int, color: Vec3[float]) =
+proc set*(fb: var FramebufRef, x, y: int, color: Vec3[float64]) =
+  let offs = (y * fb.w + x) * 3
+  fb.data[offs    ] = float32(color.r)
+  fb.data[offs + 1] = float32(color.g)
+  fb.data[offs + 2] = float32(color.b)
+
+proc set*(fb: var FramebufRef, x, y: int, color: Vec3[float32]) =
   let offs = (y * fb.w + x) * 3
   fb.data[offs    ] = color.r
   fb.data[offs + 1] = color.g
   fb.data[offs + 2] = color.b
 
-proc get*(fb: var FramebufRef, x, y: int): Vec3[float] =
+proc get*(fb: var FramebufRef, x, y: int): Vec3[float32] =
   let offs = (y * fb.w + x) * 3
   result = vec3(fb.data[offs    ],
                 fb.data[offs + 1],

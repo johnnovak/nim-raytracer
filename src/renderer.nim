@@ -154,6 +154,8 @@ proc render(msg: WorkMsg): ResponseMsg =
   result = ResponseMsg(stats: stats)
 
 
-proc initRenderer*(numWorkers: int = 0): WorkerPool[WorkMsg, ResponseMsg] =
+proc initRenderer*(numWorkers, maxWorkers: Natural = 0):
+  WorkerPool[WorkMsg, ResponseMsg] =
+
   result = initWorkerPool[WorkMsg, ResponseMsg](render, numWorkers)
 
