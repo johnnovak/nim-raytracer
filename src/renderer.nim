@@ -13,11 +13,11 @@ type
   AntialiasObj = object
     case kind*: AntialiasKind
     of akNone: discard
-    of akGrid: gridSize*: int
+    of akGrid: gridSize*: Natural
 
 type
   Options* = object
-    width*, height*: int
+    width*, height*: Natural
     fov*: float
     cameraToWorld*: Mat4x4[float]
     antialias*: Antialias
@@ -31,14 +31,16 @@ type
   WorkMsg* = object
     scene*: ptr Scene
     opts*: Options
-    framebuf*: ptr FramebufRef
-    line*: int
+    framebuf*: ptr Framebuf
+    line*: Natural
+    step*: Natural
+    maxStep*: Natural
 
 type
   Stats* = object
-    numPrimaryRays*: int
-    numIntersectionTests*: int
-    numIntersectionHits*: int
+    numPrimaryRays*: Natural
+    numIntersectionTests*: Natural
+    numIntersectionHits*: Natural
 
   ResponseMsg* = object
     stats*: Stats
@@ -53,7 +55,7 @@ proc `+=`*(l: var Stats, r: Stats) =
 const
   DEFAULT_CAMERA_POS = vec4(0.0, 0.0, 0.0, 1.0)
 
-proc primaryRay(w, h, x, y: int, xoffs, yoffs: float, fov: float,
+proc primaryRay(w, h, x, y: Natural, xoffs, yoffs: float, fov: float,
                 cameraToWorld: Mat4x4[float]): Ray =
   let
     r = w / h
@@ -94,7 +96,7 @@ proc shade(ray: Ray, bgColor: Vec3[float]): Vec3[float] =
     result = o.getShade(ray)
 
 
-proc calcPixelNoAA(scene: Scene, opts: Options, x, y: int,
+proc calcPixelNoAA(scene: Scene, opts: Options, x, y: Natural,
                    stats: var Stats): Vec3[float] =
 
   var ray = primaryRay(opts.width, opts.height, x, y, xoffs = 0, yoffs = 0,
@@ -104,7 +106,7 @@ proc calcPixelNoAA(scene: Scene, opts: Options, x, y: int,
   result = shade(ray, opts.bgColor)
 
 
-proc calcPixelGridAA(scene: Scene, opts: Options, x, y: int, size: int,
+proc calcPixelGridAA(scene: Scene, opts: Options, x, y, size: Natural,
                      stats: var Stats): Vec3[float] =
 
   let
@@ -134,28 +136,50 @@ proc calcPixelGridAA(scene: Scene, opts: Options, x, y: int, size: int,
 
 
 proc renderLine(scene: Scene, opts: Options,
-                fb: var FramebufRef, line: int): Stats =
+                fb: var Framebuf, y, step, maxStep: int): Stats =
+
+  assert isPowerOfTwo(step)
+  assert isPowerOfTwo(maxStep)
+  assert maxStep >= step
+
   var
     stats = Stats()
     color: Vec3[float]
 
-  for x in 0..<opts.width:
+  for x in countup(0, opts.width-1, step):
+    if step < maxStep:
+      let mask = step*2 - 1
+      if ((x and mask) == 0) and ((y and mask) == 0):
+        continue
+
     case opts.antialias.kind:
-    of akNone: color = calcPixelNoAA(scene, opts, x, line, stats)
-    of akGrid: color = calcPixelGridAA(scene, opts, x, line,
-                                       opts.antialias.gridSize, stats)
-    fb.set(x, line, color)
+    of akNone: color = calcPixelNoAA(scene, opts, x, y, stats)
+    of akGrid: color = calcPixelGridAA(scene, opts, x, y,
+                                      opts.antialias.gridSize, stats)
+
+    if step > 1:
+      for i in x..<min(x+step, opts.width):
+        for j in y..<min(y+step, opts.height):
+          fb.set(i, j, color)
+    else:
+      fb.set(x, y, color)
 
   result = stats
 
 
 proc render(msg: WorkMsg): ResponseMsg =
-  let stats = renderLine(msg.scene[], msg.opts, msg.framebuf[], msg.line)
+  let step = if msg.step == 0: 1 else: msg.step
+  let maxStep = if msg.maxStep == 0: 1 else: msg.maxStep
+
+  let stats = renderLine(msg.scene[], msg.opts, msg.framebuf[], msg.line,
+                         step, maxStep)
+
   result = ResponseMsg(stats: stats)
 
 
-proc initRenderer*(numWorkers, maxWorkers: Natural = 0):
-  WorkerPool[WorkMsg, ResponseMsg] =
+proc initRenderer*(numActiveWorkers: Natural = 0,
+                   poolSize: Natural = 0): WorkerPool[WorkMsg, ResponseMsg] =
 
-  result = initWorkerPool[WorkMsg, ResponseMsg](render, numWorkers)
+  result = initWorkerPool[WorkMsg, ResponseMsg](render, numActiveWorkers,
+                                                poolSize)
 

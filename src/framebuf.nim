@@ -3,38 +3,44 @@ import glm
 import mathutils
 
 type
-  Framebuf* = object
-    w*, h*: int
-    data: seq[float32]
+  FramebufObj = object
+    w*, h*: Natural
+    data*: seq[float32]
 
-  FramebufRef* = ref Framebuf
+  Framebuf* = ref FramebufObj
 
 
-proc newFramebuf*(w, h: int): FramebufRef =
+proc newFramebuf*(w, h: Natural): Framebuf =
   new(result)
   result.w = w
   result.h = h
   result.data = newSeq[float32](w * h * 3)
 
-proc set*(fb: var FramebufRef, x, y: int, color: Vec3[float64]) =
+proc set*(fb: var Framebuf, x, y: Natural, color: Vec3[float64]) =
+  assert x < fb.w
+  assert y < fb.h
   let offs = (y * fb.w + x) * 3
   fb.data[offs    ] = float32(color.r)
   fb.data[offs + 1] = float32(color.g)
   fb.data[offs + 2] = float32(color.b)
 
-proc set*(fb: var FramebufRef, x, y: int, color: Vec3[float32]) =
+proc set*(fb: var Framebuf, x, y: Natural, color: Vec3[float32]) =
+  assert x < fb.w
+  assert y < fb.h
   let offs = (y * fb.w + x) * 3
   fb.data[offs    ] = color.r
   fb.data[offs + 1] = color.g
   fb.data[offs + 2] = color.b
 
-proc get*(fb: var FramebufRef, x, y: int): Vec3[float32] =
+proc get*(fb: var Framebuf, x, y: Natural): Vec3[float32] =
+  assert x < fb.w
+  assert y < fb.h
   let offs = (y * fb.w + x) * 3
   result = vec3(fb.data[offs    ],
                 fb.data[offs + 1],
                 fb.data[offs + 2])
 
-proc writePpm*(fb: FramebufRef, filename: string, bits: range[1..16]): bool =
+proc writePpm*(fb: Framebuf, filename: string, bits: range[1..16]): bool =
   var
     f: File
     maxval = float32(2^bits - 1)
@@ -42,11 +48,11 @@ proc writePpm*(fb: FramebufRef, filename: string, bits: range[1..16]): bool =
   proc writeHeader() =
     f.write("P6 " & $fb.w & " " & $fb.h & " " & $int(maxval) & " ")
 
-  proc writeUint8(v: int) =
+  proc writeUint8(v: Natural) =
     var buf = uint8(v)
     discard f.writeBuffer(buf.addr, 1)
 
-  proc writeUint16(v: int) =
+  proc writeUint16(v: Natural) =
     var buf = uint16(v)
     var bufBE: uint16
     bigEndian16(bufBE.addr, buf.addr)

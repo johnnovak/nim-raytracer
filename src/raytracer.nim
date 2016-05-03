@@ -73,7 +73,7 @@ proc main() =
   )
 
   var framebuf = newFramebuf(opts.width, opts.height)
-  var renderer = initRenderer(numWorkers = 4, maxWorkers = 8)
+  var renderer = initRenderer(numActiveWorkers = 8, poolSize = 8)
 
   renderer.waitForReady()
   discard renderer.start()
@@ -98,26 +98,6 @@ proc main() =
       inc numResponses
       stats += response.stats
 
-      if numResponses == 50:
-        renderer.waitForReady()
-        let res = renderer.setNumWorkers(2)
-        echo "setNumWorkers(2): " & $res
-
-      if numResponses == 70:
-        renderer.waitForReady()
-        let res = renderer.setNumWorkers(1)
-        echo "setNumWorkers(2): " & $res
-
-      if numResponses == 100:
-        renderer.waitForReady()
-        let res = renderer.setNumWorkers(4)
-        echo "setNumWorkers(4): " & $res
-
-      if numResponses == 150:
-        renderer.waitForReady()
-        let res = renderer.setNumWorkers(8)
-        echo "setNumWorkers(8): " & $res
-
       let currProgress = numResponses / numLines
       if currProgress - lastProgress > 0.01:
         tCurr = epochTime() - tStart
@@ -126,15 +106,15 @@ proc main() =
           tRemaining = tEstTotal - tCurr
 
         printProgress(currProgress, tCurr, tRemaining)
-#        printStats(stats)
+        printStats(stats)
         lastProgress = currProgress
 
-#        setCursorXPos(stdout, 0)
-#        cursorUp(stdout, 6)
+        setCursorXPos(stdout, 0)
+        cursorUp(stdout, 6)
 
   tCurr = epochTime() - tStart
   printProgress(1.0, tCurr, 0)
-#  printStats(stats)
+  printStats(stats)
 
   echo "\nRendering completed in " & tCurr | (1, 4) & " seconds"
 

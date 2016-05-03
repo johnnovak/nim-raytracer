@@ -12,6 +12,8 @@ proc sgn*(x: float): float =
   if x < 0: result = -1
   else: result = 0
 
+proc modulo*(x: float): float = abs(x - floor(x))
+
 proc quadraticDelta*(a, b, c: float): float =
   b*b - 4*a*c
 
