@@ -33,12 +33,12 @@ proc printStats(stats: Stats) =
 
 proc main() =
   let opts = Options(
-    width: 300,
-    height: 200,
+    width: 600,
+    height: 400,
     fov: 50.0,
     cameraToWorld: mat4(1.0).rotate(vec3(1.0, 0, 0), degToRad(-12.0))
                             .translate(vec3(1.0, 4.0, -3.0)),
-    antialias: Antialias(kind: akGrid, gridSize: 8),
+    antialias: Antialias(kind: akGrid, gridSize: 16),
     bgColor: vec3(0.3, 0.5, 0.7)
   )
 
@@ -73,7 +73,7 @@ proc main() =
   )
 
   var framebuf = newFramebuf(opts.width, opts.height)
-  var renderer = initRenderer(numActiveWorkers = 8, poolSize = 8)
+  var renderer = initRenderer(numActiveWorkers = 6, poolSize = 8)
 
   renderer.waitForReady()
   discard renderer.start()

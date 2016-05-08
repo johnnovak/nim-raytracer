@@ -7,10 +7,13 @@ proc eq*(a, b: float64, maxRelDiff: float64 = 1e-15): bool =
 proc eq*(a, b: float32, maxRelDiff: float32 = 1e-7): bool =
   abs(a - b) <= max(abs(a), abs(b)) * maxRelDiff
 
-proc sgn*(x: float): float =
-  if x > 0: result = 1
-  if x < 0: result = -1
-  else: result = 0
+proc sign*(x: float): float =
+  if x > 0:
+    result = 1
+  elif x < 0:
+    result = -1
+  else:
+    result = 0
 
 proc modulo*(x: float): float = abs(x - floor(x))
 
@@ -19,7 +22,7 @@ proc quadraticDelta*(a, b, c: float): float =
 
 proc solveQuadratic*(a, b, c, delta: float): (float, float) =
   var
-    t1: float = (-b - sgn(b) * sqrt(delta)) / 2*a
+    t1: float = (-b - sign(b) * sqrt(delta)) / 2*a
     t2: float = c / (a*t1)
   result = (t1, t2)
 

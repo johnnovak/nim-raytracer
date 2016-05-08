@@ -5,7 +5,7 @@ import glfw, glfw/wrapper as glfwWrapper
 import nanovg
 
 import glad/gl
-import image, format, renderer
+import image, format, ui, renderer
 
 
 proc keyCb(win: Win, key: Key, scanCode: int, action: KeyAction,
@@ -42,17 +42,19 @@ proc printProgress(currProgress, tCurr, tRemaining: float) =
   echo "Ellapsed time: " & formatDuration(tCurr) &
        "\t\tRemaining time: " & formatDuration(tRemaining)
 
+
 proc printStats(stats: Stats) =
   echo "\n" & formatStats(stats)
 
+
 proc main() =
   let opts = Options(
-    width: 1600,
-    height: 1200,
+    width: 900,
+    height: 600,
     fov: 50.0,
     cameraToWorld: mat4(1.0).rotate(vec3(1.0, 0, 0), degToRad(-12.0))
                             .translate(vec3(1.0, 4.0, -3.0)),
-    antialias: Antialias(kind: akGrid, gridSize: 32),
+    antialias: Antialias(kind: akGrid, gridSize: 16),
     bgColor: vec3(0.3, 0.5, 0.7)
   )
 
@@ -86,6 +88,30 @@ proc main() =
     objects: objects
   )
 
+  var
+    doRedraw = false
+    windowWidth, windowHeight: int
+
+  proc draw()
+
+  proc winRefreshCb(win: Win) =
+    draw()
+    glfw.swapBufs(win)
+    doRedraw = false
+
+
+  proc reshape(win: Win, res: tuple[w, h: int]) =
+    windowWidth  = res.w
+    windowHeight = if res.h > 0: res.h else: 1
+    doRedraw = true
+
+  proc cursorPosCb(win: Win, pos: tuple[x, y: float64]) =
+    doRedraw = true
+
+  proc mouseBtnCb(win: Win, btn: MouseBtn, pressed: bool,
+                  modKeys: ModifierKeySet) =
+    doRedraw = true
+
 
   glfw.init()
 
@@ -101,6 +127,11 @@ proc main() =
   )
 
   win.keyCb = keyCb
+  win.cursorPosCb = cursorPosCb
+  win.mouseBtnCb = mouseBtnCb
+  win.framebufSizeCb = reshape
+  win.winRefreshCb = winRefreshCb
+
   glfw.makeContextCurrent(win)
 
   var vg = nvgInit(getProcAddress)
@@ -112,21 +143,30 @@ proc main() =
 
   glfw.swapInterval(1)
 
+  setUIContext(vg)
+  if not initUI():
+    quit "Error initialising UI"
 
   var framebuf = newFramebuf(opts.width, opts.height)
-  var renderer = initRenderer(numActiveWorkers = 6, poolSize = 8)
 
+  var renderer = initRenderer(numActiveWorkers = 6, poolSize = 8)
   renderer.waitForReady()
-  discard renderer.start()
+
+  var img = initImageRGBA(opts.width, opts.height)
+  var imgHandle = vg.createImageRGBA(cint(img.w), cint(img.h), 0, img.caddr)
+
 
   proc calcTotalRequests(lines, maxStep: Natural): Natural =
+    assert isPowerOfTwo(maxStep)
     result = 0
     var s = maxStep
     while s > 0:
-      result += lines div s
-      s = s shr 1
+      result += ceil(lines / s).int
+      s = s div 2
 
-  proc queueMessages(step, maxStep: Natural): Natural =
+  proc queueRequests(step, maxStep: Natural): Natural =
+    assert isPowerOfTwo(step)
+    assert isPowerOfTwo(maxStep)
     result = 0
     for i in countup(0, opts.height-1, step):
       let msg = WorkMsg(scene: scene.addr, opts: opts,
@@ -135,75 +175,12 @@ proc main() =
       renderer.queueWork(msg)
       inc result
 
-  var
-    numResponses = 0
-    numTotalResponses = 0
-    lastProgress = NegInf
-    tStart = epochTime()
-    tCurr = 0.0
-    stats = Stats()
-    renderFinished = false
 
-  var img = initImageRGBA(opts.width, opts.height)
-  var imgHandle = vg.createImageRGBA(cint(img.w), cint(img.h), 0, img.caddr)
-
-  let maxStep = 32
-  var step = maxStep
-  var numRequests = queueMessages(step, maxStep)
-
-  let numTotalRequests = calcTotalRequests(opts.height, maxStep)
-
-  while not win.shouldClose:
+  proc beginFrame() =
     var
-      (mx, my) = win.cursorPos()
       (winWidth, winHeight) = win.size
       (fbWidth, fbHeight) = win.framebufSize
       pxRatio = float(fbWidth) / float(winWidth)
-
-    if not renderFinished:
-      if numResponses < numRequests:
-        while true:
-          let (available, response) = renderer.tryRecvResult()
-          if available:
-            inc numResponses
-            inc numTotalResponses
-            stats += response.stats
-
-            let currProgress = numTotalResponses / numTotalRequests
-            if currProgress - lastProgress > 0.01:
-              tCurr = epochTime() - tStart
-              let
-                tEstTotal = tCurr / currProgress
-                tRemaining = tEstTotal - tCurr
-
-              printProgress(currProgress, tCurr, tRemaining)
-              printStats(stats)
-              lastProgress = currProgress
-
-              setCursorXPos(stdout, 0)
-              cursorUp(stdout, 6)
-          else:
-            break
-      else:
-        if step > 1:
-          step = step shr 1
-          numRequests = queueMessages(step, maxStep)
-          numResponses = 0
-        else:
-          tCurr = epochTime() - tStart
-          printProgress(1.0, tCurr, 0)
-          printStats(stats)
-
-          echo "\nRendering completed in " & tCurr | (1, 4) & " seconds"
-          renderFinished = true
-
-          discard framebuf.writePpm("render.ppm", 8)
-          echo "Image file 'render.ppm' written to disk."
-
-          # TODO
-          echo numTotalResponses
-          echo numTotalRequests
-
 
     glViewport(GLint(0), GLint(0), GLsizei(fbWidth), GLsizei(fbHeight))
 
@@ -213,33 +190,149 @@ proc main() =
 
     vg.beginFrame(winWidth, winHeight, pxRatio)
 
+
+  proc drawImage() =
     img.copyFrom(framebuf)
     vg.updateImage(imgHandle, img.caddr)
 
-    var imgPaint = vg.imagePattern(0, 0, cfloat(img.w), cfloat(img.h), 0,
+    let 
+      x = (windowWidth - img.w) / 2
+      y = (windowHeight - img.h) / 2
+
+    var imgPaint = vg.imagePattern(x, y, cfloat(img.w), cfloat(img.h), 0,
                                    imgHandle, 1.0)
     vg.beginPath()
-    vg.rect(0, 0, cfloat(img.w), cfloat(img.h))
+    vg.rect(x, y, cfloat(img.w), cfloat(img.h))
     vg.fillPaint(imgPaint)
     vg.fill()
 
+
+  let maxStep = 32
+
+  var
+    step = maxStep
+    numResponses = 0
+    numTotalResponses = 0
+    renderFinished = false
+
+  var numRequests = queueRequests(step, maxStep)
+  let numTotalRequests = calcTotalRequests(opts.height, maxStep)
+
+  var
+    currProgress: float
+    lastProgress = NegInf
+    tStart = 0.0
+    tCurr = 0.0
+    tRemaining = 0.0
+    stats = Stats()
+
+  proc updateProgress() =
+    currProgress = numTotalResponses / numTotalRequests
+    if currProgress - lastProgress > 0.01:
+      tCurr = epochTime() - tStart
+      let
+        tEstTotal = tCurr / currProgress
+      tRemaining = tEstTotal - tCurr
+
+      printProgress(currProgress, tCurr, tRemaining)
+      printStats(stats)
+      lastProgress = currProgress
+
+      setCursorXPos(stdout, 0)
+      cursorUp(stdout, 6)
+
+
+  proc printFinalProgress() =
+    tCurr = epochTime() - tStart
+    printProgress(1.0, tCurr, 0)
+    printStats(stats)
+
+    echo "\nRendering completed in " & tCurr | (1, 4) & " seconds"
+
+
+  proc handleUI() =
+    let (mx, my) = win.cursorPos()
+    beginUI(mx, my,
+            mbLeftDown = win.mouseBtnDown(mbLeft),
+            mbRightDown = win.mouseBtnDown(mbRight))
+
+    panel(1, 0, 0, 210, 200)
+
+    if button(2, 10, 15, 60, 18, "Start",
+              disabled = not renderer.isReady() or
+                             renderer.state() == wsRunning):
+      discard renderer.start()
+      tStart = epochTime()
+
+    if button(3, 77, 15, 60, 18, "Stop",
+              disabled = not renderer.isReady() or
+                             renderer.state() == wsStopped):
+      discard renderer.stop()
+
+    progressBar(10, 45, 190, 16, currProgress)
+
+    text(10, 70, 100, 18, "Ellapsed time:", halign = haLeft)
+    text(10, 70, 190, 18, formatDuration(tCurr), halign = haRight)
+
+    text(10, 88, 200, 18, "Remaining time:", halign = haLeft)
+    text(10, 88, 190, 18, formatDuration(tRemaining), halign = haRight)
+
+    var text = "This\nshit\ndoesn't\nwork\nand i have no idea\nwhy not?!?!"
+    console(0, windowHeight.float - 200, windowWidth.float, 200, text)
+
+
+  proc draw() =
+    beginFrame()
+    drawImage()
+    handleUI()
+    handleUI()
     vg.endFrame()
+
+
+  let (fbWidth, fbHeight) = win.framebufSize
+  win.reshape((w: fbWidth, h: fbHeight))
+
+  while not win.shouldClose:
+    if not renderFinished:
+      if numResponses < numRequests:
+        while true:
+          let (available, response) = renderer.tryRecvResult()
+          if available:
+            inc numResponses
+            inc numTotalResponses
+            stats += response.stats
+            updateProgress()
+            doRedraw = true
+          else:
+            break
+      else:
+        if step > 1:
+          step = step div 2
+          numRequests = queueRequests(step, maxStep)
+          numResponses = 0
+        else:
+          printFinalProgress()
+          renderFinished = true
+          doRedraw = true
+          discard renderer.stop()
+
+          discard framebuf.writePpm("render.ppm", 8)
+          echo "Image file 'render.ppm' written to disk."
+
+    if doRedraw:
+      winRefreshCb(win)
 
     glfw.swapBufs(win)
     glfw.pollEvents()
 
 
   nvgDelete(vg)
-  quit 0
 
-  #TODO
   renderer.waitForReady()
   discard renderer.shutdown()
 
   renderer.waitForReady()
   discard renderer.close()
-
-
 
 main()
 

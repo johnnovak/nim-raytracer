@@ -23,7 +23,7 @@ type
   WorkerCommand = enum
     wcStop, wcStart, wcShutdown
 
-  WorkerState = enum
+  WorkerState* = enum
     wsStopped, wsRunning, wsShutdown
 
   WorkQueueChannel[W] = SharedChannel[W]
