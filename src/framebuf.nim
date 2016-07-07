@@ -58,15 +58,18 @@ proc writePpm*(fb: Framebuf, filename: string, bits: range[1..16]): bool =
     bigEndian16(bufBE.addr, buf.addr)
     discard f.writeBuffer(bufBE.addr, 2)
 
+  proc outvalue(v: float32): Natural =
+    Natural(round(clamp(v, 0.0, 1.0) * maxval))
+
   var writeComponent = if bits <= 8: writeUint8 else: writeUint16
 
   if open(f, filename, fmWrite):
     try:
       writeHeader()
       for i in countup(0, fb.data.high, 3):
-        writeComponent(round(clamp(fb.data[i    ], 0.0, 1.0) * maxval))
-        writeComponent(round(clamp(fb.data[i + 1], 0.0, 1.0) * maxval))
-        writeComponent(round(clamp(fb.data[i + 2], 0.0, 1.0) * maxval))
+        writeComponent(outvalue(fb.data[i    ]))
+        writeComponent(outvalue(fb.data[i + 1]))
+        writeComponent(outvalue(fb.data[i + 2]))
       result = true
     except:
       result = false
