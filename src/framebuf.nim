@@ -1,6 +1,6 @@
 import endians, math
 import glm
-import mathutils
+import color, mathutils
 
 type
   FramebufObj = object
@@ -40,7 +40,8 @@ proc get*(fb: var Framebuf, x, y: Natural): Vec3[float32] =
                 fb.data[offs + 1],
                 fb.data[offs + 2])
 
-proc writePpm*(fb: Framebuf, filename: string, bits: range[1..16]): bool =
+proc writePpm*(fb: Framebuf, filename: string,
+               bits: range[1..16] = 8, sRGB: bool = true): bool =
   var
     f: File
     maxval = float32(2^bits - 1)
@@ -59,7 +60,10 @@ proc writePpm*(fb: Framebuf, filename: string, bits: range[1..16]): bool =
     discard f.writeBuffer(bufBE.addr, 2)
 
   proc outvalue(v: float32): Natural =
-    Natural(round(clamp(v, 0.0, 1.0) * maxval))
+    var c = clamp(v, 0.0, 1.0)
+    if sRGB:
+      c = linearToSRGB(c)
+    Natural(round(c * maxval))
 
   var writeComponent = if bits <= 8: writeUint8 else: writeUint16
 
