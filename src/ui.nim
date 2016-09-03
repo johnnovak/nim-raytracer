@@ -36,7 +36,7 @@ var
 var
   panelBgColor= gray(153, 200)
 
-  textDefaultColor         = BLACK
+  textDefaultColor         = gray(10)
 
   buttonCornerRadius       = 4.0
   buttonOutlineColor       = gray(30)
@@ -103,11 +103,13 @@ proc initUI*(): bool =
 
 #  fontNormal = vg.createFont("sans", "data/Roboto-Regular.ttf")
   fontNormal = vg.createFont("sans", "data/DejaVuSans.ttf")
+#  fontNormal = vg.createFont("sans", "data/DroidSans.ttf")
   if fontNormal == -1:
     echo "Could not load font."
     return false
 
   fontNormal = vg.createFont("mono", "data/Inconsolata-Regular.ttf")
+#  fontNormal = vg.createFont("mono", "data/DroidSansMono.ttf")
   if fontNormal == -1:
     echo "Could not load font."
     return false
@@ -212,13 +214,13 @@ proc widgetText(x, y, w, h: float, text: string,
   discard vg.text(tx, ty, text)
 
 # }}}
-# {{{ text
+# {{{ label
 
-proc text*(x, y, w, h: float, text: string,
-           textColor: Color = textDefaultColor,
-           textShadowColor: Color = BLACK.withAlpha(0),
-           halign: HorizAlign = haCenter,
-           valign: VertAlign = vaMiddle) =
+proc label*(x, y, w, h: float, text: string,
+            textColor: Color = textDefaultColor,
+            textShadowColor: Color = BLACK.withAlpha(0),
+            halign: HorizAlign = haCenter,
+            valign: VertAlign = vaMiddle) =
 
   widgetText(x, y, w, h, text, textColor, textShadowColor, halign, valign)
 
@@ -313,9 +315,10 @@ proc console*(x, y, w, h: float, text: string) =
   vg.fillColor(gray(100, 130))
   vg.fill()
 
-  vg.fontSize(15)
+  vg.fontSize(16)
+  vg.textLineHeight(1.2)
   vg.fontFace("mono")
-  vg.fillColor(WHITE)
+  vg.fillColor(gray(240))
   vg.textAlign(haLeft, vaTop)
   vg.textBox(x, y, w, text)
 

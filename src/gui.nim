@@ -271,14 +271,14 @@ proc main() =
 
     progressBar(10, 45, 190, 16, currProgress)
 
-    text(10, 70, 100, 18, "Ellapsed time:", halign = haLeft)
-    text(10, 70, 190, 18, formatDuration(tCurr), halign = haRight)
+    label(10, 70, 100, 18, "Ellapsed time:", halign = haLeft)
+    label(10, 70, 190, 18, formatDuration(tCurr), halign = haRight)
 
-    text(10, 88, 200, 18, "Remaining time:", halign = haLeft)
-    text(10, 88, 190, 18, formatDuration(tRemaining), halign = haRight)
+    label(10, 88, 200, 18, "Remaining time:", halign = haLeft)
+    label(10, 88, 190, 18, formatDuration(tRemaining), halign = haRight)
 
-    var text = "This\nshit\ndoesn't\nwork\nand i have no idea\nwhy not?!?!"
-    console(0, windowHeight.float - 200, windowWidth.float, 200, text)
+    var text = "Meanwhile, an immediate mode GUI is one in which the GUI system generally does not retain information about your GUI, but instead, repeatedly asks you to re-specify what your controls are, and where they are, and so on.\n\nTesting\nthis\nmiserable piece of shit\n\nfor i in 0..1:\n  for j in 0..2:\n    echo $i & $j"
+    console(0, windowHeight.float - 250, windowWidth.float, 250, text)
 
 
   proc draw() =
