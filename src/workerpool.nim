@@ -1,4 +1,5 @@
-import cpuinfo
+import cpuinfo, locks, os
+
 
 template trace(s: string) =
   when defined(DEBUG):
@@ -19,6 +20,20 @@ proc close[T](ch: var SharedChannel[T]) =
   ch = nil
 
 
+type Monitor = ptr object
+  L: Lock
+  C: Cond
+
+proc newMonitor(): Monitor =
+  result = cast[Monitor](allocShared0(sizeof(Monitor)))
+  initLock(result.L)
+  initCond(result.C)
+
+proc destroyMonitor(m: Monitor) =
+  deinitCond(m[].C)
+  deinitLock(m[].L)
+
+
 type
   WorkerCommand = enum
     wcStop, wcStart, wcShutdown
@@ -29,7 +44,6 @@ type
   WorkQueueChannel[W] = SharedChannel[W]
   ResultQueueChannel[R] = SharedChannel[R]
   CmdChannel = SharedChannel[WorkerCommand]
-  AckChannel = SharedChannel[bool]
 
   WorkerArgs[W, R] = object
     workerId: Natural
@@ -37,7 +51,8 @@ type
     workQueue: WorkQueueChannel[W]
     resultQueue: ResultQueueChannel[R]
     cmdChan: CmdChannel
-    ackChan: AckChannel
+    ackCounter: ptr Natural
+    monitor: Monitor
 
   Worker[W, R] = Thread[WorkerArgs[W, R]]
 
@@ -46,37 +61,41 @@ type
     workQueue: WorkQueueChannel[W]
     resultQueue: ResultQueueChannel[R]
     cmdChannels: seq[CmdChannel]
-    ackChannels: seq[AckChannel]
     workProc: proc (msg: W): R
     numActiveWorkers: Natural
     ackCounter: Natural
+    monitors: seq[Monitor]
     state: WorkerState
 
 
 proc doWork[W, R](args: WorkerArgs[W, R]) {.thread.} =
-  proc sendAck() = args.ackChan[].send(true)
-
   proc workerId(): string = "[" & $args.workerId & "]"
 
+  proc ack() =
+    atomicDec(args.ackCounter[])
+    assert args.ackCounter[] >= 0
+    if args.ackCounter[] == 0:
+      discard  # state change notification
+
   trace workerId() & " Starting"
-  sendAck()
   var state = wsStopped
+  ack()
 
   while true:
     case state
     of wsStopped:
       let cmd = args.cmdChan[].recv()
       case cmd
-      of wcStart:    state = wsRunning; sendAck()
-      of wcShutdown: state = wsShutdown
+      of wcStart:    state = wsRunning;  ack()
+      of wcShutdown: state = wsShutdown; ack()
       else: discard
 
     of wsRunning:
       let (cmdAvailable, cmd) = args.cmdChan[].tryRecv()
       if cmdAvailable:
         case cmd
-        of wcStop:     state = wsStopped; sendAck(); continue
-        of wcShutdown: state = wsShutdown; continue
+        of wcStop:     state = wsStopped;  ack()
+        of wcShutdown: state = wsShutdown; ack()
         else: discard
 
       let (msgAvailable, msg) = args.workQueue[].tryRecv()
@@ -87,12 +106,14 @@ proc doWork[W, R](args: WorkerArgs[W, R]) {.thread.} =
 
         trace workerId() & " Sending response:\t\t\t" & $response
         args.resultQueue[].send(response)
+        # TODO notify client
       else:
-        cpuRelax()
+        wait(args.monitor[].C, args.monitor[].L)
+        trace workerId() &  " Waiting for messages"
+        trace workerId() &  " " & $state
 
     of wsShutdown:
       trace workerId() & " Shutting down"
-      sendAck()
       return
 
 
@@ -107,41 +128,33 @@ proc state*[W, R](wp: var WorkerPool[W, R]): WorkerState =
 
 
 proc isReady*[W, R](wp: var WorkerPool[W, R]): bool =
-  if wp.ackCounter > 0:
-    trace "Waiting for " & $wp.ackCounter & " ack signals"
-
-    for i in 0..<wp.poolSize():
-      let (available, _) = wp.ackChannels[i][].tryRecv()
-      if available:
-        trace "  Ack received from worker " & $i
-        dec wp.ackCounter
-
   result = wp.ackCounter == 0
 
 
 proc waitForReady*[W, R](wp: var WorkerPool[W, R]) =
+  trace "Waiting for ready..."
   while not wp.isReady():
     cpuRelax()
 
 
 proc initWorkerPool*[W, R](workProc: proc (msg: W): R,
-                           numActiveWorkers: Natural = 0,
-                           poolSize: Natural = 0): WorkerPool[W, R] =
+                           poolSize: Natural = 0,
+                           numActiveWorkers: Natural = 0): WorkerPool[W, R] =
 
   trace "Initialising worker pool..."
 
   var numProcessors = countProcessors()
-  trace "  " & $numProcessors & " CPUs found"
+  trace "  " & $numProcessors & " CPU cores found"
 
-  var    n = if numActiveWorkers == 0: numProcessors else: numActiveWorkers
   var nMax = if poolSize == 0: numProcessors else: poolSize
-  if n > nMax: nMax = n
+  var n = if numActiveWorkers == 0: nMax else: numActiveWorkers
+  if n > nMax: n = nMax
 
   trace "  Setting pool size to " & $nMax & " worker threads"
-  trace "  Setting initial pool size to " & $n & " worker threads"
+  trace "  Setting number of initially active workers to " & $n
 
   result.workProc = workProc
-  result.numActiveWorkers = numActiveWorkers
+  result.numActiveWorkers = n
   result.ackCounter = nMax
   result.state = wsStopped
 
@@ -150,11 +163,11 @@ proc initWorkerPool*[W, R](workProc: proc (msg: W): R,
 
   result.workers = newSeq[Worker[W, R]](nMax)
   result.cmdChannels = newSeq[CmdChannel](nMax)
-  result.ackChannels = newSeq[AckChannel](nMax)
+  result.monitors = newSeq[Monitor](nMax)
 
   for i in 0..<nMax:
     result.cmdChannels[i] = newSharedChannel[CmdChannel]()
-    result.ackChannels[i] = newSharedChannel[AckChannel]()
+    result.monitors[i] = newMonitor()
 
     var args = WorkerArgs[W, R](
       workerId: i,
@@ -162,15 +175,24 @@ proc initWorkerPool*[W, R](workProc: proc (msg: W): R,
       workQueue: result.workQueue,
       resultQueue: result.resultQueue,
       cmdChan: result.cmdChannels[i],
-      ackChan: result.ackChannels[i])
+      ackCounter: result.ackCounter.addr,
+      monitor: result.monitors[i])
 
     createThread(result.workers[i], doWork, args)
 
+  result.waitForReady()
   trace "  Init successful"
+
+
+proc notifyWorkers[W, R](wp: var WorkerPool[W, R]) =
+  for i in 0..<wp.numActiveWorkers:
+    trace "Signalling [" & $i & "]"
+    signal(wp.monitors[i].C)
 
 
 proc queueWork*[W, R](wp: var WorkerPool[W, R], msg: W) =
   wp.workQueue[].send(msg)
+  wp.notifyWorkers()
 
 
 proc tryRecvResult*[W, R](wp: var WorkerPool[W, R]): (bool, R) =
@@ -179,9 +201,11 @@ proc tryRecvResult*[W, R](wp: var WorkerPool[W, R]): (bool, R) =
 
 proc sendCmd[W, R](wp: var WorkerPool[W, R], cmd: WorkerCommand,
                    lo, hi: Natural = 0) =
-  for i in lo..hi:
-    wp.cmdChannels[i][].send(cmd)
   wp.ackCounter = hi-lo+1
+  for i in lo..hi:
+    trace "Sending command " & $cmd & " to [" & $i & "]"
+    wp.cmdChannels[i][].send(cmd)
+  wp.notifyWorkers()
 
 
 proc start*[W, R](wp: var WorkerPool[W, R]): bool =
@@ -189,8 +213,8 @@ proc start*[W, R](wp: var WorkerPool[W, R]): bool =
     return false
 
   trace "Sending start command to all active workers"
-  wp.sendCmd(wcStart, hi = wp.numActiveWorkers-1)
   wp.state = wsRunning
+  wp.sendCmd(wcStart, hi = wp.numActiveWorkers-1)
   result = true
 
 
@@ -199,8 +223,8 @@ proc stop*[W, R](wp: var WorkerPool[W, R]): bool =
     return false
 
   trace "Sending stop command to all active workers"
-  wp.sendCmd(wcStop, hi = wp.numActiveWorkers-1)
   wp.state = wsStopped
+  wp.sendCmd(wcStop, hi = wp.numActiveWorkers-1)
   result = true
 
 
@@ -222,7 +246,6 @@ proc reset*[W, R](wp: var WorkerPool[W, R]): bool =
 
   for i in 0..<wp.numWActiveorkers:
     drainChannel(wp.cmdChannels[i][])
-    drainChannel(wp.ackChannels[i][])
 
   trace "Reset successful"
   result = true
@@ -232,6 +255,7 @@ proc setNumWorkers*[W, R](wp: var WorkerPool[W, R],
                           newNumWorkers: Natural): bool =
 
   if newNumWorkers == wp.numActiveWorkers or
+     newNumWorkers > wp.poolSize or
      wp.state == wsShutdown or not wp.isReady():
     return false
 
@@ -242,14 +266,14 @@ proc setNumWorkers*[W, R](wp: var WorkerPool[W, R],
       let
         lo = wp.numActiveWorkers
         hi = newNumWorkers-1
-      trace "  Starting workers " & $lo & " to " & $hi
+      trace "  Starting [" & $lo & "] to [" & $hi & "]"
       wp.sendCmd(wcStart, lo, hi)
 
     else:
       let
         lo = newNumWorkers
         hi = wp.numActiveWorkers-1
-      trace "  Stopping workers " & $lo & " to " & $hi
+      trace "  Stopping [" & $lo & "] to [" & $hi & "]"
       wp.sendCmd(wcStop, lo, hi)
 
   wp.numActiveWorkers = newNumWorkers
@@ -261,6 +285,7 @@ proc shutdown*[W, R](wp: var WorkerPool[W, R]): bool =
     return false
 
   trace "Shutting down all worker threads"
+  wp.state = wsShutdown
   wp.sendCmd(wcShutdown, hi = wp.poolSize-1)
   result = true
 
@@ -275,5 +300,6 @@ proc close*[W, R](wp: var WorkerPool[W, R]): bool =
 
   for i in 0..<wp.poolSize:
     wp.cmdChannels[i].close()
-    wp.ackChannels[i].close()
+
+  result = true
 

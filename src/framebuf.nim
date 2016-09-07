@@ -16,6 +16,7 @@ proc newFramebuf*(w, h: Natural): Framebuf =
   result.h = h
   result.data = newSeq[float32](w * h * 3)
 
+
 proc set*(fb: var Framebuf, x, y: Natural, color: Vec3[float64]) =
   assert x < fb.w
   assert y < fb.h
@@ -39,6 +40,13 @@ proc get*(fb: var Framebuf, x, y: Natural): Vec3[float32] =
   result = vec3(fb.data[offs    ],
                 fb.data[offs + 1],
                 fb.data[offs + 2])
+
+
+proc rect*(fb: var Framebuf, ox, oy, w, h: Natural, color: Vec3[float32]) =
+  for x in ox..<ox+w:
+    for y in oy..<oy+h:
+      fb.set(x, y, color)
+
 
 proc writePpm*(fb: Framebuf, filename: string,
                bits: range[1..16] = 8, sRGB: bool = true): bool =

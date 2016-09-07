@@ -5,11 +5,6 @@ import color
 import random
 
 
-proc rect(fb: var Framebuf, ox, oy, w, h: Natural, color: Vec3[float32]) =
-  for x in ox..<ox+w:
-    for y in oy..<oy+h:
-      fb.set(x, y, color)
-
 let
   WIDTH = 1024
   HEIGHT = 100
