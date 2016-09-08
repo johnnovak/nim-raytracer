@@ -50,6 +50,7 @@ type
     state: WorkerState
     nextState: WorkerState
     nextEvent: WorkerEvent
+    nextNumActiveWorkers: Natural
 
   WorkerArgs[W, R] = object
     workerId: Natural
@@ -120,6 +121,9 @@ proc sendEvent*[W, R](wp: var WorkerPool[W, R]) =
 
 proc ackProc*[W, R](wp: var WorkerPool[W, R]) =
   wp.state = wp.nextState
+  if wp.nextNumActiveWorkers > 0:
+    wp.numActiveWorkers = wp.nextNumActiveWorkers
+    wp.nextNumActiveWorkers = 0
   wp.ready = true
   trace "ackProc, state: " & $wp.state
   wp.sendEvent()
@@ -173,6 +177,7 @@ proc initWorkerPool*[W, R](
   result.state = wsStopped
   result.nextState = wsStopped
   result.nextEvent = WorkerEvent(kind: wekInitialised)
+  result.nextNumActiveWorkers = 0
 
   result.workQueue = newSharedChannel[W]()
   result.resultQueue = newSharedChannel[R]()
@@ -303,21 +308,23 @@ proc setNumWorkers*[W, R](wp: var WorkerPool[W, R],
 
   trace "Setting number of workers to " & $newNumWorkers & "..."
 
+  let wasStopped = wp.state == wsStopped
+
   wp.nextEvent = WorkerEvent(kind: wekNumWorkersChanged,
                              fromNumWorkers: wp.numActiveWorkers,
                              toNumWorkers: newNumWorkers)
 
-  let wasStopped = wp.state == wsStopped
-
   if wp.state == wsRunning:
     wp.ready = false
+    wp.nextState = wp.state
+    wp.nextNumActiveWorkers = newNumWorkers
+
     if newNumWorkers > wp.numActiveWorkers:
       let
         lo = wp.numActiveWorkers
         hi = newNumWorkers-1
       trace "  Starting [" & $lo & "] to [" & $hi & "]"
       wp.sendCmd(wcStart, lo, hi)
-
     else:
       let
         lo = newNumWorkers
@@ -328,8 +335,8 @@ proc setNumWorkers*[W, R](wp: var WorkerPool[W, R],
   # Need to send the event manually if we were in stopped state already
   if wasStopped:
     wp.sendEvent()
+    wp.numActiveWorkers = newNumWorkers
 
-  wp.numActiveWorkers = newNumWorkers
   result = true
 
 

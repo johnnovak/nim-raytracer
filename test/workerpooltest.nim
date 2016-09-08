@@ -207,16 +207,19 @@ suite "workerpool test":
     checkEvent(WorkerEvent(kind: wekNumWorkersChanged,
                            fromNumWorkers: 4, toNumWorkers: 3), wsStopped):
       check wp.setNumWorkers(3) == true
+    checkpoint("setNumWorkers(3) OK")
  
     check wp.setNumWorkers(3) == false
     check wp.setNumWorkers(9) == false
 
     checkEvent(WorkerEvent(kind: wekStarted), wsRunning):
       check wp.start() == true
+    checkpoint("stopeed -> running OK")
 
     checkEvent(WorkerEvent(kind: wekNumWorkersChanged,
                            fromNumWorkers: 3, toNumWorkers: 6), wsRunning):
       check wp.setNumWorkers(6) == true
+    checkpoint("setNumWorkers(6) OK")
 
     checkEvent(WorkerEvent(kind: wekShutdownCompleted), wsShutdown):
       check wp.shutdown() == true
