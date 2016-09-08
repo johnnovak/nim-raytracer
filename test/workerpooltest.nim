@@ -16,10 +16,36 @@ type
     text: string
     n: int
 
-
 proc doWork(msg: WorkMsg): ResponseMsg =
   sleep(SLEEP_TIME_MS)
   result = ResponseMsg(text: msg.text & " response", n: msg.text.len())
+
+
+var
+  eventReceived = 1
+  event: WorkerEvent = nil
+
+proc eventCb(ev: WorkerEvent) =
+  event = ev
+  atomicInc(eventReceived)
+  assert eventReceived == 1
+
+proc prepareCheckEvent() =
+  atomicDec(eventReceived)
+  assert eventReceived == 0
+
+proc doCheckEvent(expected: WorkerEvent) =
+  while eventReceived != 1:
+    discard
+  check event.kind == expected.kind
+
+template checkEvent(expectedEvent: WorkerEvent, expectedState: WorkerState,
+                    body: stmt) =
+  prepareCheckEvent()
+  body
+  doCheckEvent(expectedEvent)
+  check wp.state == expectedState
+  check wp.isReady() == true
 
 
 suite "stuff":
@@ -35,38 +61,86 @@ suite "stuff":
     check wp.poolSize == countProcessors()
     check wp.numActiveWorkers == wp.poolSize
 
-  test "state transitions from stopped state":
-    var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork)
 
+  test "state transitions from stopped state while idle (polling)":
+    var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                  numActiveWorkers = 4)
     check wp.state == wsStopped
     check wp.stop() == false
     check wp.shutdown() == true
-
     wp.waitForReady()
     check wp.state == wsShutdown
 
 
-  test "state transitions from running state":
-    var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork)
-    check wp.start() == true
+  test "state transitions from stopped state while idle (events)":
+    var wp: WorkerPool[WorkMsg, ResponseMsg]
 
+    checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
+      wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                numActiveWorkers = 4,
+                                                eventCb = eventCb)
+    checkpoint("init OK")
+
+    check wp.stop() == false
+    checkEvent(WorkerEvent(kind: wekShutdownCompleted), wsShutdown):
+      check wp.shutdown() == true
+    checkpoint("stopped -> shutdown OK")
+
+
+  test "state transitions from running state while idle (polling)":
+    var  wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                   numActiveWorkers = 4)
+    check wp.state == wsStopped
+    checkpoint("init OK")
+
+    check wp.start() == true
     wp.waitForReady()
     check wp.state == wsRunning
-    check wp.stop() == true
+    checkpoint("stopped -> running OK")
 
+    check wp.stop() == true
     wp.waitForReady()
     check wp.state == wsStopped
-    check wp.start() == true
+    checkpoint("running -> stopped OK")
 
+    check wp.start() == true
     wp.waitForReady()
     check wp.state == wsRunning
-    check wp.shutdown() == true
+    checkpoint("stopped -> running OK")
 
+    check wp.shutdown() == true
     wp.waitForReady()
     check wp.state == wsShutdown
+    checkpoint("started -> shutdown OK")
 
 
-  test "state transitions from shutdown state":
+  test "state transitions from running state while idle (events)":
+    var wp: WorkerPool[WorkMsg, ResponseMsg]
+
+    checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
+      wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                numActiveWorkers = 4,
+                                                eventCb = eventCb)
+    checkpoint("init OK")
+
+    checkEvent(WorkerEvent(kind: wekStarted), wsRunning):
+      check wp.start() == true
+    checkpoint("stopped -> running OK")
+
+    checkEvent(WorkerEvent(kind: wekStopped), wsStopped):
+      check wp.stop() == true
+    checkpoint("running -> stopped OK")
+
+    checkEvent(WorkerEvent(kind: wekStarted), wsRunning):
+      check wp.start() == true
+    checkpoint("stopped -> running OK")
+
+    checkEvent(WorkerEvent(kind: wekShutdownCompleted), wsShutdown):
+      check wp.shutdown() == true
+    checkpoint("running -> shutdown OK")
+
+
+  test "state transitions from shutdown state while idle (polling)":
     var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork)
     check wp.shutdown() == true
 
@@ -77,26 +151,12 @@ suite "stuff":
     check wp.close() == true
 
 
-  test "closing the pool":
-    var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                  numActiveWorkers = 4)
-
-    check wp.state == wsStopped
-    check wp.close() == false
-
-    check wp.start() == true
-    wp.waitForReady()
-    check wp.state == wsRunning
-    check wp.close() == false
-
-    check wp.shutdown() == true
-    wp.waitForReady()
-    check wp.setNumWorkers(3) == false
-    check wp.state == wsShutdown
+  # TODO
+  test "state transitions from shutdown state while idle (events)":
+    discard
 
 
-
-  test "changing the number of active workers":
+  test "changing the number of active workers while idle (polling)":
     var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
                                                   numActiveWorkers = 4)
 
@@ -123,12 +183,15 @@ suite "stuff":
     check wp.state == wsShutdown
 
 
-  test "changing the number of active workers while running":
-    if countProcessors() == 1:
-      echo "*** WARNING: Cannot execute test on a single-core CPU"
-      skip()
+  # TODO
+  test "changing the number of active workers while idle (events)":
+    discard
 
-    var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork)
+
+  test "changing the number of active workers while running (polling)":
+    var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                  numActiveWorkers = 4)
+
     check wp.start() == true
 
     for i in 0..<NUM_MESSAGES:
@@ -150,7 +213,7 @@ suite "stuff":
 
         if numResponses == 300:
           wp.waitForReady()
-          check wp.setNumWorkers(countProcessors()) == true
+          check wp.setNumWorkers(8) == true
 
         inc numResponses
 
@@ -159,5 +222,34 @@ suite "stuff":
     check wp.close() == true
 
 
-  test "reset":
+  # TODO
+  test "changing the number of active workers while running (events)":
     discard
+
+
+  # TODO
+  test "reset (polling)":
+    discard
+
+
+  # TODO
+  test "reset (events)":
+    discard
+
+
+  test "closing the pool":
+    var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                  numActiveWorkers = 4)
+
+    check wp.state == wsStopped
+    check wp.close() == false
+
+    check wp.start() == true
+    wp.waitForReady()
+    check wp.state == wsRunning
+    check wp.close() == false
+
+    check wp.shutdown() == true
+    wp.waitForReady()
+    check wp.state == wsShutdown
+
