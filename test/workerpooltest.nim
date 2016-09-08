@@ -48,7 +48,7 @@ template checkEvent(expectedEvent: WorkerEvent, expectedState: WorkerState,
   check wp.isReady() == true
 
 
-suite "stuff":
+suite "workerpool test":
 
   test "pool autosizing":
     var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork)
@@ -111,7 +111,7 @@ suite "stuff":
     check wp.shutdown() == true
     wp.waitForReady()
     check wp.state == wsShutdown
-    checkpoint("started -> shutdown OK")
+    checkpoint("running -> shutdown OK")
 
 
   test "state transitions from running state while idle (events)":
@@ -151,9 +151,21 @@ suite "stuff":
     check wp.close() == true
 
 
-  # TODO
   test "state transitions from shutdown state while idle (events)":
-    discard
+    var wp: WorkerPool[WorkMsg, ResponseMsg]
+
+    checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
+      wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                numActiveWorkers = 4,
+                                                eventCb = eventCb)
+    checkpoint("init OK")
+
+    checkEvent(WorkerEvent(kind: wekShutdownCompleted), wsShutdown):
+      check wp.shutdown() == true
+    checkpoint("stopped -> shutdown OK")
+    check wp.start() == false
+    check wp.stop() == false
+    check wp.close() == true
 
 
   test "changing the number of active workers while idle (polling)":
@@ -183,11 +195,35 @@ suite "stuff":
     check wp.state == wsShutdown
 
 
-  # TODO
   test "changing the number of active workers while idle (events)":
-    discard
+    var wp: WorkerPool[WorkMsg, ResponseMsg]
 
+    checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
+      wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                numActiveWorkers = 4,
+                                                eventCb = eventCb)
+    checkpoint("init OK")
 
+    checkEvent(WorkerEvent(kind: wekNumWorkersChanged,
+                           fromNumWorkers: 4, toNumWorkers: 3), wsStopped):
+      check wp.setNumWorkers(3) == true
+ 
+    check wp.setNumWorkers(3) == false
+    check wp.setNumWorkers(9) == false
+
+    checkEvent(WorkerEvent(kind: wekStarted), wsRunning):
+      check wp.start() == true
+
+    checkEvent(WorkerEvent(kind: wekNumWorkersChanged,
+                           fromNumWorkers: 3, toNumWorkers: 6), wsRunning):
+      check wp.setNumWorkers(6) == true
+
+    checkEvent(WorkerEvent(kind: wekShutdownCompleted), wsShutdown):
+      check wp.shutdown() == true
+
+    check wp.setNumWorkers(3) == false
+
+ 
   test "changing the number of active workers while running (polling)":
     var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
                                                   numActiveWorkers = 4)
