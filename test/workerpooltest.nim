@@ -66,7 +66,6 @@ suite "stuff":
     check wp.state == wsShutdown
 
 
-#discard """
   test "state transitions from shutdown state":
     var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork)
     check wp.shutdown() == true
@@ -162,4 +161,3 @@ suite "stuff":
 
   test "reset":
     discard
-#"""
