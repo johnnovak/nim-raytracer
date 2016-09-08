@@ -205,11 +205,11 @@ suite "stuff":
 
         if numResponses == 100:
           wp.waitForReady()
-          check wp.setNumWorkers(max(wp.numActiveWorkers / 2, 1).int) == true
+          check wp.setNumWorkers(2) == true
 
         if numResponses == 200:
           wp.waitForReady()
-          check wp.setNumWorkers(max(wp.numActiveWorkers / 2, 1).int) == true
+          check wp.setNumWorkers(1) == true
 
         if numResponses == 300:
           wp.waitForReady()
