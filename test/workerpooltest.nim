@@ -226,7 +226,33 @@ suite "workerpool test":
 
     check wp.setNumWorkers(3) == false
 
- 
+  discard """
+Traceback (most recent call last)
+workerpool.nim(106)      threadProc
+workerpool.nim(76)       ack
+workerpool.nim(192)      ack
+workerpool.nim(129)      ackProc
+workerpool.nim(119)      sendEvent
+workerpooltest.nim(31)   eventCb
+system.nim(3397)         failedAssertImpl
+system.nim(3389)         raiseAssert
+system.nim(2532)         sysFatal
+Error: unhandled exception: eventReceived == 1  [AssertionError]
+Traceback (most recent call last)
+workerpool.nim(106)      threadProc
+workerpool.nim(76)       ack
+workerpool.nim(192)      ack
+workerpool.nim(129)      ackProc
+workerpool.nim(119)      sendEvent
+workerpooltest.nim(31)   eventCb
+system.nim(3397)         failedAssertImpl
+system.nim(3389)         raiseAssert
+system.nim(2532)         sysFatal
+Error: unhandled exception: eventReceived == 1  [AssertionError]
+Error: execution of an external program failed: '/Users/johnnovak/dev/jn/nim-raytracer/test/workerpooltest '
+"""
+
+
   test "changing the number of active workers while running (polling)":
     var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
                                                   numActiveWorkers = 4)
@@ -261,19 +287,284 @@ suite "workerpool test":
     check wp.close() == true
 
 
-  # TODO
   test "changing the number of active workers while running (events)":
-    discard
+    var wp: WorkerPool[WorkMsg, ResponseMsg]
+
+    checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
+      wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                numActiveWorkers = 4,
+                                                eventCb = eventCb)
+    checkpoint("init OK")
+
+    checkEvent(WorkerEvent(kind: wekStarted), wsRunning):
+      check wp.start() == true
+    checkpoint("stopped -> running OK")
+
+    for i in 0..<NUM_MESSAGES:
+      let msg = WorkMsg(text: $i)
+      wp.queueWork(msg)
+
+    var numResponses = 0
+    while numResponses != NUM_MESSAGES:
+      var (available, response) = wp.tryRecvResult()
+      if (available):
+
+        if numResponses == 100:
+          checkEvent(WorkerEvent(kind: wekNumWorkersChanged,
+                                 fromNumWorkers: 4, toNumWorkers: 2),
+                     wsRunning):
+            check wp.setNumWorkers(2) == true
+          checkpoint("setNumWorkers(2) OK")
+
+        if numResponses == 200:
+          checkEvent(WorkerEvent(kind: wekNumWorkersChanged,
+                                 fromNumWorkers: 2, toNumWorkers: 1),
+                     wsRunning):
+            check wp.setNumWorkers(1) == true
+          checkpoint("setNumWorkers(1) OK")
+
+        if numResponses == 300:
+          checkEvent(WorkerEvent(kind: wekNumWorkersChanged,
+                                 fromNumWorkers: 1, toNumWorkers: 8),
+                     wsRunning):
+            check wp.setNumWorkers(8) == true
+          checkpoint("setNumWorkers(8) OK")
+
+        inc numResponses
+
+    checkEvent(WorkerEvent(kind: wekShutdownCompleted), wsShutdown):
+      check wp.shutdown() == true
+    checkpoint("stopped -> shutdown OK")
+    check wp.close() == true
 
 
-  # TODO
-  test "reset (polling)":
-    discard
+  test "reset from stopped state while idle (polling)":
+    var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                  numActiveWorkers = 4)
+
+    check wp.state == wsStopped
+    checkpoint("init OK")
+
+    let (available, response) = wp.tryRecvResult()
+    check available == false
+
+    check wp.reset() == true
+    wp.waitForReady()
+    check wp.state == wsStopped
+    checkpoint("reset OK")
+
+    check wp.shutdown() == true
+    wp.waitForReady()
+    check wp.close() == true
 
 
-  # TODO
-  test "reset (events)":
-    discard
+  test "reset from stopped state while idle (events)":
+    var wp: WorkerPool[WorkMsg, ResponseMsg]
+
+    checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
+      wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                numActiveWorkers = 4,
+                                                eventCb = eventCb)
+    check wp.state == wsStopped
+    checkpoint("init OK")
+
+    let (available, response) = wp.tryRecvResult()
+    check available == false
+
+    checkEvent(WorkerEvent(kind: wekResetCompleted), wsStopped):
+      check wp.reset() == true
+    checkpoint("reset OK")
+
+    checkEvent(WorkerEvent(kind: wekShutdownCompleted), wsShutdown):
+      check wp.shutdown() == true
+    checkpoint("stopped -> shutdown OK")
+    check wp.close() == true
+
+
+  test "reset from running state while idle (polling)":
+    var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                  numActiveWorkers = 4)
+
+    check wp.state == wsStopped
+    checkpoint("init OK")
+
+    let (available, response) = wp.tryRecvResult()
+    check available == false
+
+    check wp.start() == true
+    wp.waitForReady()
+
+    check wp.reset() == true
+    wp.waitForReady()
+    check wp.state == wsStopped
+    checkpoint("reset OK")
+
+    check wp.shutdown() == true
+    wp.waitForReady()
+    check wp.close() == true
+
+
+  test "reset from running state while idle (events)":
+    var wp: WorkerPool[WorkMsg, ResponseMsg]
+
+    checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
+      wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                numActiveWorkers = 4,
+                                                eventCb = eventCb)
+    check wp.state == wsStopped
+    checkpoint("init OK")
+
+    let (available, response) = wp.tryRecvResult()
+    check available == false
+
+    checkEvent(WorkerEvent(kind: wekStarted), wsRunning):
+      check wp.start() == true
+    checkpoint("stoped -> running OK")
+
+    checkEvent(WorkerEvent(kind: wekResetCompleted), wsStopped):
+      check wp.reset() == true
+    checkpoint("reset OK")
+
+    checkEvent(WorkerEvent(kind: wekShutdownCompleted), wsShutdown):
+      check wp.shutdown() == true
+    checkpoint("stopped -> shutdown OK")
+    check wp.close() == true
+
+
+  test "reset from stopped state when there are messages in the queue (polling)":
+    var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                  numActiveWorkers = 4)
+
+    check wp.state == wsStopped
+    checkpoint("init OK")
+
+    for i in 0..<NUM_MESSAGES:
+      let msg = WorkMsg(text: $i)
+      wp.queueWork(msg)
+
+    var (available, response) = wp.tryRecvResult()
+    check available == false
+
+    check wp.reset() == true
+    wp.waitForReady()
+    check wp.state == wsStopped
+    checkpoint("reset OK")
+
+    check wp.start() == true
+    wp.waitForReady()
+
+    sleep(SLEEP_TIME_MS * 5)
+
+    (available, response) = wp.tryRecvResult()
+    check available == false
+
+    check wp.shutdown() == true
+    wp.waitForReady()
+    check wp.close() == true
+
+
+  test "reset from stopped state when there are messages in the queue (events)":
+    var wp: WorkerPool[WorkMsg, ResponseMsg]
+
+    checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
+      wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                numActiveWorkers = 4,
+                                                eventCb = eventCb)
+    check wp.state == wsStopped
+    checkpoint("init OK")
+
+    for i in 0..<NUM_MESSAGES:
+      let msg = WorkMsg(text: $i)
+      wp.queueWork(msg)
+
+    var (available, response) = wp.tryRecvResult()
+    check available == false
+
+    checkEvent(WorkerEvent(kind: wekResetCompleted), wsStopped):
+      check wp.reset() == true
+    checkpoint("reset OK")
+
+    checkEvent(WorkerEvent(kind: wekStarted), wsRunning):
+      check wp.start() == true
+    checkpoint("stoped -> running OK")
+
+    sleep(SLEEP_TIME_MS * 5)
+
+    (available, response) = wp.tryRecvResult()
+    check available == false
+
+    checkEvent(WorkerEvent(kind: wekShutdownCompleted), wsShutdown):
+      check wp.shutdown() == true
+    checkpoint("stopped -> shutdown OK")
+    check wp.close() == true
+
+
+  test "reset from running state while messages are being processed (polling)":
+    var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                  numActiveWorkers = 4)
+
+    check wp.state == wsStopped
+    checkpoint("init OK")
+
+    for i in 0..<NUM_MESSAGES:
+      let msg = WorkMsg(text: $i)
+      wp.queueWork(msg)
+
+    var (available, response) = wp.tryRecvResult()
+    check available == false
+
+    check wp.start() == true
+    wp.waitForReady()
+
+    sleep(SLEEP_TIME_MS * 10)
+
+    check wp.reset() == true
+    wp.waitForReady()
+    check wp.state == wsStopped
+    checkpoint("reset OK")
+
+    (available, response) = wp.tryRecvResult()
+    check available == false
+
+    check wp.shutdown() == true
+    wp.waitForReady()
+    check wp.close() == true
+
+
+  test "reset from running state while messages are being processed (events)":
+    var wp: WorkerPool[WorkMsg, ResponseMsg]
+
+    checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
+      wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
+                                                numActiveWorkers = 4,
+                                                eventCb = eventCb)
+    check wp.state == wsStopped
+    checkpoint("init OK")
+
+    for i in 0..<NUM_MESSAGES:
+      let msg = WorkMsg(text: $i)
+      wp.queueWork(msg)
+
+    var (available, response) = wp.tryRecvResult()
+    check available == false
+
+    checkEvent(WorkerEvent(kind: wekStarted), wsRunning):
+      check wp.start() == true
+    checkpoint("stoped -> running OK")
+
+    sleep(SLEEP_TIME_MS * 10)
+
+    checkEvent(WorkerEvent(kind: wekResetCompleted), wsStopped):
+      check wp.reset() == true
+    checkpoint("reset OK")
+
+    (available, response) = wp.tryRecvResult()
+    check available == false
+
+    checkEvent(WorkerEvent(kind: wekShutdownCompleted), wsShutdown):
+      check wp.shutdown() == true
+    checkpoint("stopped -> shutdown OK")
+    check wp.close() == true
 
 
   test "closing the pool":

@@ -273,22 +273,22 @@ proc reset*[W, R](wp: var WorkerPool[W, R]): bool =
     return false
 
   trace "Resetting worker pool..."
-  wp.nextState = wsStopped
   wp.nextEvent = WorkerEvent(kind: wekResetCompleted)
-  wp.ready = false
 
   let wasStopped = wp.state == wsStopped
 
   if wp.state == wsRunning:
     trace "  Stopping workers..."
+    wp.nextState = wsStopped
+    wp.ready = false
     wp.sendCmd(wcStop, hi = wp.numActiveWorkers-1)
     wp.waitForReady()
 
   drainChannel(wp.workQueue)
   drainChannel(wp.resultQueue)
 
-  for i in 0..<wp.numWActiveorkers:
-    drainChannel(wp.cmdChannels[i][])
+  for i in 0..<wp.numActiveWorkers:
+    drainChannel(wp.cmdChannels[i])
 
   # Need to send the event manually if we were in stopped state already
   if wasStopped:
