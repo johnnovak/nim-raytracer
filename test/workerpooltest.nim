@@ -22,20 +22,23 @@ proc doWork(msg: WorkMsg): ResponseMsg =
 
 
 var
-  eventReceived = 1
+  numResultsReceived = 0
+  numEventsReceived = 1
   event: WorkerEvent = nil
 
 proc eventCb(ev: WorkerEvent) =
   event = ev
-  atomicInc(eventReceived)
-  assert eventReceived == 1
+  inc numEventsReceived
+  assert numEventsReceived == 1
+
+proc resultSentCb() =
+  atomicInc numResultsReceived
 
 proc prepareCheckEvent() =
-  atomicDec(eventReceived)
-  assert eventReceived == 0
+  numEventsReceived = 0
 
 proc doCheckEvent(expected: WorkerEvent) =
-  while eventReceived != 1:
+  while numEventsReceived != 1:
     discard
   check event.kind == expected.kind
 
@@ -56,7 +59,7 @@ suite "workerpool test":
     check wp.poolSize == countProcessors()
     check wp.numActiveWorkers == wp.poolSize
 
-    wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, numActiveWorkers = 1000)
+    wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, initialNumWorkers = 1000)
 
     check wp.poolSize == countProcessors()
     check wp.numActiveWorkers == wp.poolSize
@@ -64,7 +67,7 @@ suite "workerpool test":
 
   test "state transitions from stopped state while idle (polling)":
     var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                  numActiveWorkers = 4)
+                                                  initialNumWorkers = 4)
     check wp.state == wsStopped
     check wp.stop() == false
     check wp.shutdown() == true
@@ -77,7 +80,7 @@ suite "workerpool test":
 
     checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
       wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                numActiveWorkers = 4,
+                                                initialNumWorkers = 4,
                                                 eventCb = eventCb)
     checkpoint("init OK")
 
@@ -89,7 +92,7 @@ suite "workerpool test":
 
   test "state transitions from running state while idle (polling)":
     var  wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                   numActiveWorkers = 4)
+                                                   initialNumWorkers = 4)
     check wp.state == wsStopped
     checkpoint("init OK")
 
@@ -119,7 +122,7 @@ suite "workerpool test":
 
     checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
       wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                numActiveWorkers = 4,
+                                                initialNumWorkers = 4,
                                                 eventCb = eventCb)
     checkpoint("init OK")
 
@@ -156,7 +159,7 @@ suite "workerpool test":
 
     checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
       wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                numActiveWorkers = 4,
+                                                initialNumWorkers = 4,
                                                 eventCb = eventCb)
     checkpoint("init OK")
 
@@ -170,7 +173,7 @@ suite "workerpool test":
 
   test "changing the number of active workers while idle (polling)":
     var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                  numActiveWorkers = 4)
+                                                  initialNumWorkers = 4)
 
     check wp.state == wsStopped
     check wp.numActiveWorkers == 4
@@ -200,7 +203,7 @@ suite "workerpool test":
 
     checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
       wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                numActiveWorkers = 4,
+                                                initialNumWorkers = 4,
                                                 eventCb = eventCb)
     checkpoint("init OK")
 
@@ -208,7 +211,7 @@ suite "workerpool test":
                            fromNumWorkers: 4, toNumWorkers: 3), wsStopped):
       check wp.setNumWorkers(3) == true
     checkpoint("setNumWorkers(3) OK")
- 
+
     check wp.setNumWorkers(3) == false
     check wp.setNumWorkers(9) == false
 
@@ -226,36 +229,10 @@ suite "workerpool test":
 
     check wp.setNumWorkers(3) == false
 
-  discard """
-Traceback (most recent call last)
-workerpool.nim(106)      threadProc
-workerpool.nim(76)       ack
-workerpool.nim(192)      ack
-workerpool.nim(129)      ackProc
-workerpool.nim(119)      sendEvent
-workerpooltest.nim(31)   eventCb
-system.nim(3397)         failedAssertImpl
-system.nim(3389)         raiseAssert
-system.nim(2532)         sysFatal
-Error: unhandled exception: eventReceived == 1  [AssertionError]
-Traceback (most recent call last)
-workerpool.nim(106)      threadProc
-workerpool.nim(76)       ack
-workerpool.nim(192)      ack
-workerpool.nim(129)      ackProc
-workerpool.nim(119)      sendEvent
-workerpooltest.nim(31)   eventCb
-system.nim(3397)         failedAssertImpl
-system.nim(3389)         raiseAssert
-system.nim(2532)         sysFatal
-Error: unhandled exception: eventReceived == 1  [AssertionError]
-Error: execution of an external program failed: '/Users/johnnovak/dev/jn/nim-raytracer/test/workerpooltest '
-"""
-
 
   test "changing the number of active workers while running (polling)":
     var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                  numActiveWorkers = 4)
+                                                  initialNumWorkers = 4)
 
     check wp.start() == true
 
@@ -290,10 +267,13 @@ Error: execution of an external program failed: '/Users/johnnovak/dev/jn/nim-ray
   test "changing the number of active workers while running (events)":
     var wp: WorkerPool[WorkMsg, ResponseMsg]
 
+    numResultsReceived = 0
+
     checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
       wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                numActiveWorkers = 4,
-                                                eventCb = eventCb)
+                                                initialNumWorkers = 4,
+                                                eventCb = eventCb,
+                                                resultSentCb = resultSentCb)
     checkpoint("init OK")
 
     checkEvent(WorkerEvent(kind: wekStarted), wsRunning):
@@ -332,6 +312,8 @@ Error: execution of an external program failed: '/Users/johnnovak/dev/jn/nim-ray
 
         inc numResponses
 
+    check numResultsReceived == NUM_MESSAGES
+
     checkEvent(WorkerEvent(kind: wekShutdownCompleted), wsShutdown):
       check wp.shutdown() == true
     checkpoint("stopped -> shutdown OK")
@@ -340,7 +322,7 @@ Error: execution of an external program failed: '/Users/johnnovak/dev/jn/nim-ray
 
   test "reset from stopped state while idle (polling)":
     var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                  numActiveWorkers = 4)
+                                                  initialNumWorkers = 4)
 
     check wp.state == wsStopped
     checkpoint("init OK")
@@ -361,10 +343,13 @@ Error: execution of an external program failed: '/Users/johnnovak/dev/jn/nim-ray
   test "reset from stopped state while idle (events)":
     var wp: WorkerPool[WorkMsg, ResponseMsg]
 
+    numResultsReceived = 0
+
     checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
       wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                numActiveWorkers = 4,
-                                                eventCb = eventCb)
+                                                initialNumWorkers = 4,
+                                                eventCb = eventCb,
+                                                resultSentCb = resultSentCb)
     check wp.state == wsStopped
     checkpoint("init OK")
 
@@ -379,11 +364,12 @@ Error: execution of an external program failed: '/Users/johnnovak/dev/jn/nim-ray
       check wp.shutdown() == true
     checkpoint("stopped -> shutdown OK")
     check wp.close() == true
+    check numResultsReceived == 0
 
 
   test "reset from running state while idle (polling)":
     var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                  numActiveWorkers = 4)
+                                                  initialNumWorkers = 4)
 
     check wp.state == wsStopped
     checkpoint("init OK")
@@ -407,10 +393,13 @@ Error: execution of an external program failed: '/Users/johnnovak/dev/jn/nim-ray
   test "reset from running state while idle (events)":
     var wp: WorkerPool[WorkMsg, ResponseMsg]
 
+    numResultsReceived = 0
+
     checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
       wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                numActiveWorkers = 4,
-                                                eventCb = eventCb)
+                                                initialNumWorkers = 4,
+                                                eventCb = eventCb,
+                                                resultSentCb = resultSentCb)
     check wp.state == wsStopped
     checkpoint("init OK")
 
@@ -429,11 +418,12 @@ Error: execution of an external program failed: '/Users/johnnovak/dev/jn/nim-ray
       check wp.shutdown() == true
     checkpoint("stopped -> shutdown OK")
     check wp.close() == true
+    check numResultsReceived == 0
 
 
   test "reset from stopped state when there are messages in the queue (polling)":
     var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                  numActiveWorkers = 4)
+                                                  initialNumWorkers = 4)
 
     check wp.state == wsStopped
     checkpoint("init OK")
@@ -466,10 +456,13 @@ Error: execution of an external program failed: '/Users/johnnovak/dev/jn/nim-ray
   test "reset from stopped state when there are messages in the queue (events)":
     var wp: WorkerPool[WorkMsg, ResponseMsg]
 
+    numResultsReceived = 0
+
     checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
       wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                numActiveWorkers = 4,
-                                                eventCb = eventCb)
+                                                initialNumWorkers = 4,
+                                                eventCb = eventCb,
+                                                resultSentCb = resultSentCb)
     check wp.state == wsStopped
     checkpoint("init OK")
 
@@ -497,11 +490,12 @@ Error: execution of an external program failed: '/Users/johnnovak/dev/jn/nim-ray
       check wp.shutdown() == true
     checkpoint("stopped -> shutdown OK")
     check wp.close() == true
+    check numResultsReceived == 0
 
 
   test "reset from running state while messages are being processed (polling)":
     var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                  numActiveWorkers = 4)
+                                                  initialNumWorkers = 4)
 
     check wp.state == wsStopped
     checkpoint("init OK")
@@ -534,10 +528,13 @@ Error: execution of an external program failed: '/Users/johnnovak/dev/jn/nim-ray
   test "reset from running state while messages are being processed (events)":
     var wp: WorkerPool[WorkMsg, ResponseMsg]
 
+    numResultsReceived = 0
+
     checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
       wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                numActiveWorkers = 4,
-                                                eventCb = eventCb)
+                                                initialNumWorkers = 4,
+                                                eventCb = eventCb,
+                                                resultSentCb = resultSentCb)
     check wp.state == wsStopped
     checkpoint("init OK")
 
@@ -553,11 +550,15 @@ Error: execution of an external program failed: '/Users/johnnovak/dev/jn/nim-ray
     checkpoint("stoped -> running OK")
 
     sleep(SLEEP_TIME_MS * 10)
+    (available, response) = wp.tryRecvResult()
+    check available == true
+    check numResultsReceived > 0
 
     checkEvent(WorkerEvent(kind: wekResetCompleted), wsStopped):
       check wp.reset() == true
     checkpoint("reset OK")
 
+    numResultsReceived = 0
     (available, response) = wp.tryRecvResult()
     check available == false
 
@@ -565,11 +566,12 @@ Error: execution of an external program failed: '/Users/johnnovak/dev/jn/nim-ray
       check wp.shutdown() == true
     checkpoint("stopped -> shutdown OK")
     check wp.close() == true
+    check numResultsReceived == 0
 
 
   test "closing the pool":
     var wp = initWorkerPool[WorkMsg, ResponseMsg](doWork, poolSize = 8,
-                                                  numActiveWorkers = 4)
+                                                  initialNumWorkers = 4)
 
     check wp.state == wsStopped
     check wp.close() == false

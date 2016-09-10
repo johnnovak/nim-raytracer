@@ -17,8 +17,8 @@ type
   WorkerState* = enum wsStopped, wsRunning, wsShutdown
 
   WorkerEventKind* = enum
-    wekInitialised, wekStarted, wekStopped, wekNumWorkersChanged,
-    wekResetCompleted, wekShutdownCompleted
+    wekInitialised, wekStarted, wekStopped,
+    wekNumWorkersChanged, wekResetCompleted, wekShutdownCompleted
 
   WorkerEvent* = ref WorkerEventObj
 
@@ -37,12 +37,13 @@ type
   CmdChannel = SharedChannel[WorkerCommand]
 
   WorkerPool*[W, R] = object
+    workProc: proc (msg: W): R
+    eventCb: proc (ev: WorkerEvent)
+    resultSentCb: proc ()
     workers: seq[Worker[W, R]]
     workQueue: WorkQueueChannel[W]
     resultQueue: ResultQueueChannel[R]
     cmdChannels: seq[CmdChannel]
-    workProc: proc (msg: W): R
-    eventCb: proc (ev: WorkerEvent)
     numActiveWorkers: Natural
     ackCounter: Natural
     semaphores: seq[Semaphore]
@@ -59,7 +60,8 @@ type
     resultQueue: ResultQueueChannel[R]
     cmdChan: CmdChannel
     ackCounter: ptr Natural
-    ackProc: proc ()
+    ackCb: proc ()
+    resultSentCb: proc ()
     workerPool: ptr WorkerPool[W, R]
     monitor: ptr Semaphore
 
@@ -73,7 +75,7 @@ proc threadProc[W, R](args: WorkerArgs[W, R]) {.thread.} =
     atomicDec(args.ackCounter[])
     assert args.ackCounter[] >= 0
     if args.ackCounter[] == 0:
-      args.ackProc()
+      args.ackCb()
 
   trace workerId() & " Starting"
   var state = wsStopped
@@ -97,7 +99,7 @@ proc threadProc[W, R](args: WorkerArgs[W, R]) {.thread.} =
 
         trace workerId() & " Sending response:\t\t\t" & $response
         args.resultQueue[].send(response)
-        # TODO notify client
+        args.resultSentCb()
  
       let (cmdAvailable, cmd) = args.cmdChan[].tryRecv()
       if cmdAvailable:
@@ -114,19 +116,24 @@ proc threadProc[W, R](args: WorkerArgs[W, R]) {.thread.} =
       return
 
 
-proc sendEvent*[W, R](wp: var WorkerPool[W, R]) =
+proc sendEvent*[W, R](wp: var WorkerPool[W, R], ev: WorkerEvent) =
   if wp.eventCb != nil:
-    wp.eventCb(wp.nextEvent)
+    wp.eventCb(ev)
 
 
-proc ackProc*[W, R](wp: var WorkerPool[W, R]) =
+proc ackCb*[W, R](wp: var WorkerPool[W, R]) =
   wp.state = wp.nextState
   if wp.nextNumActiveWorkers > 0:
     wp.numActiveWorkers = wp.nextNumActiveWorkers
     wp.nextNumActiveWorkers = 0
   wp.ready = true
-  trace "ackProc, state: " & $wp.state
-  wp.sendEvent()
+  trace "ackCb, state: " & $wp.state
+  wp.sendEvent(wp.nextEvent)
+
+
+proc resultSentDelegateCb*[W, R](wp: var WorkerPool[W, R]) =
+  if wp.resultSentCb != nil:
+    wp.resultSentCb()
 
 
 proc poolSize*[W, R](wp: var WorkerPool[W, R]): Natural =
@@ -153,8 +160,11 @@ proc waitForReady*[W, R](wp: var WorkerPool[W, R], timeout: Natural = 1) =
 proc initWorkerPool*[W, R](
     workProc: proc (msg: W): R,
     poolSize: Natural = 0,
-    numActiveWorkers: Natural = 0,
-    eventCb: proc (ev: WorkerEvent) = nil): WorkerPool[W, R] =
+    initialNumWorkers: Natural = 0,
+    eventCb: proc (ev: WorkerEvent) = nil,
+    resultSentCb: proc () = nil): WorkerPool[W, R] =
+
+  ## Note that `resultSentCb` must be re-entrant safe while `eventCb` doesn't.
 
   trace "Initialising worker pool..."
 
@@ -162,7 +172,7 @@ proc initWorkerPool*[W, R](
   trace "  " & $numProcessors & " CPU cores found"
 
   var nMax = if poolSize == 0: numProcessors else: poolSize
-  var n = if numActiveWorkers == 0: nMax else: numActiveWorkers
+  var n = if initialNumWorkers == 0: nMax else: initialNumWorkers
   if n > nMax: n = nMax
 
   trace "  Setting pool size to " & $nMax & " worker threads"
@@ -170,6 +180,7 @@ proc initWorkerPool*[W, R](
 
   result.workProc = workProc
   result.eventCb = eventCb
+  result.resultSentCb = resultSentCb
   result.numActiveWorkers = n
 
   result.ackCounter = nMax
@@ -186,10 +197,11 @@ proc initWorkerPool*[W, R](
   result.cmdChannels = newSeq[CmdChannel](nMax)
   result.semaphores = newSeq[Semaphore](nMax)
 
-  # using result in a closure would confuse the compiler
-  # must use a pointer here otherwise a copy would be made
+  # Using result in a closure would confuse the compiler
+  # Must use a pointer for wp otherwise a copy would be made
   var wp = result.addr
-  proc ack() = ackProc(wp[])
+  proc ackClosure() = ackCb(wp[])
+  proc resultSentClosure() = resultSentDelegateCb(wp[])
 
   for i in 0..<nMax:
     result.cmdChannels[i] = newSharedChannel[CmdChannel]()
@@ -202,7 +214,8 @@ proc initWorkerPool*[W, R](
       resultQueue: result.resultQueue,
       cmdChan: result.cmdChannels[i],
       ackCounter: result.ackCounter.addr,
-      ackProc: ack,
+      ackCb: ackClosure,
+      resultSentCb: resultSentClosure,
       workerPool: result.addr,
       monitor: result.semaphores[i].addr)
 
@@ -273,13 +286,14 @@ proc reset*[W, R](wp: var WorkerPool[W, R]): bool =
     return false
 
   trace "Resetting worker pool..."
-  wp.nextEvent = WorkerEvent(kind: wekResetCompleted)
-
   let wasStopped = wp.state == wsStopped
+
+  let event = WorkerEvent(kind: wekResetCompleted)
 
   if wp.state == wsRunning:
     trace "  Stopping workers..."
     wp.nextState = wsStopped
+    wp.nextEvent = event
     wp.ready = false
     wp.sendCmd(wcStop, hi = wp.numActiveWorkers-1)
     wp.waitForReady()
@@ -292,7 +306,7 @@ proc reset*[W, R](wp: var WorkerPool[W, R]): bool =
 
   # Need to send the event manually if we were in stopped state already
   if wasStopped:
-    wp.sendEvent()
+    wp.sendEvent(event)
 
   trace "  Reset successful"
   result = true
@@ -310,14 +324,15 @@ proc setNumWorkers*[W, R](wp: var WorkerPool[W, R],
 
   let wasStopped = wp.state == wsStopped
 
-  wp.nextEvent = WorkerEvent(kind: wekNumWorkersChanged,
-                             fromNumWorkers: wp.numActiveWorkers,
-                             toNumWorkers: newNumWorkers)
+  let event = WorkerEvent(kind: wekNumWorkersChanged,
+                          fromNumWorkers: wp.numActiveWorkers,
+                          toNumWorkers: newNumWorkers)
 
   if wp.state == wsRunning:
-    wp.ready = false
     wp.nextState = wp.state
+    wp.nextEvent = event
     wp.nextNumActiveWorkers = newNumWorkers
+    wp.ready = false
 
     if newNumWorkers > wp.numActiveWorkers:
       let
@@ -334,8 +349,8 @@ proc setNumWorkers*[W, R](wp: var WorkerPool[W, R],
 
   # Need to send the event manually if we were in stopped state already
   if wasStopped:
-    wp.sendEvent()
     wp.numActiveWorkers = newNumWorkers
+    wp.sendEvent(event)
 
   result = true
 
