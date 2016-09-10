@@ -63,7 +63,7 @@ type
     ackCb: proc ()
     resultSentCb: proc ()
     workerPool: ptr WorkerPool[W, R]
-    monitor: ptr Semaphore
+    semaphore: ptr Semaphore
 
   Worker[W, R] = Thread[WorkerArgs[W, R]]
 
@@ -109,7 +109,7 @@ proc threadProc[W, R](args: WorkerArgs[W, R]) {.thread.} =
         else: discard
       else:
         trace workerId() &  " Waiting for messages..."
-        args.monitor[].await()
+        args.semaphore[].await()
 
     of wsShutdown:
       trace workerId() & " Shutting down"
@@ -217,7 +217,7 @@ proc initWorkerPool*[W, R](
       ackCb: ackClosure,
       resultSentCb: resultSentClosure,
       workerPool: result.addr,
-      monitor: result.semaphores[i].addr)
+      semaphore: result.semaphores[i].addr)
 
     createThread(result.workers[i], threadProc, args)
 
@@ -227,7 +227,7 @@ proc initWorkerPool*[W, R](
 
 proc signalWorkers[W, R](wp: var WorkerPool[W, R]) =
   for i in 0..<wp.numActiveWorkers:
-    trace "Signalling [" & $i & "]"
+    trace "  Signalling [" & $i & "]"
     wp.semaphores[i].signal()
 
 
@@ -371,12 +371,15 @@ proc close*[W, R](wp: var WorkerPool[W, R]): bool =
   if not (wp.state == wsShutdown and wp.isReady()):
     return false
 
+  trace "Waiting for threads to finish"
+  joinThreads(wp.workers)
+
   trace "Closing queues"
   wp.workQueue.close()
   wp.resultQueue.close()
 
   for i in 0..<wp.poolSize:
-    wp.cmdChannels[i].close()
+    wp.cmdChannels[i].close()  # TODO crash on windows sometimes
 
   result = true
 
