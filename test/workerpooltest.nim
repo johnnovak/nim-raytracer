@@ -27,25 +27,19 @@ var
   event: WorkerEvent = nil
 
 proc eventCb(ev: WorkerEvent) =
-#  echo "TEST: eventCb: " & $ev.kind
   event = ev
   atomicInc numEventsReceived
-  assert numEventsReceived == 1
-#  echo "TEST:   " & $numEventsReceived
+  check numEventsReceived == 1
 
 proc resultSentCb() =
   atomicInc numResultsReceived
 
 proc prepareCheckEvent() =
-#  echo "TEST: prepareCheckEvent"
   atomicDec numEventsReceived
-#  echo "TEST:   " & $numEventsReceived
 
 proc doCheckEvent(expected: WorkerEvent) =
-#  echo "TEST: doCheckEvent"
   while numEventsReceived == 0:
     cpuRelax()
-#  echo "TEST: doCheckEvent OK"
   check event.kind == expected.kind
 
 template checkEvent(expectedEvent: WorkerEvent, expectedState: WorkerState,
@@ -53,8 +47,6 @@ template checkEvent(expectedEvent: WorkerEvent, expectedState: WorkerState,
   prepareCheckEvent()
   body
   doCheckEvent(expectedEvent)
-  check wp.state == expectedState
-  check wp.isReady() == true
 
 
 # As of Nim 0.14.2, closing a channel segfaults sporadically on Windows, so
@@ -91,7 +83,6 @@ suite "workerpool test":
 
 
   test "state transitions from stopped state while idle (events)":
-#    echo "TEST: START"
     var wp: WorkerPool[WorkMsg, ResponseMsg]
 
     checkEvent(WorkerEvent(kind: wekInitialised), wsStopped):
@@ -104,8 +95,7 @@ suite "workerpool test":
     checkEvent(WorkerEvent(kind: wekShutdownCompleted), wsShutdown):
       check wp.shutdown() == true
     checkpoint("stopped -> shutdown OK")
-#    echo "TEST: PRE CLOSE"
-#
+
     checkCloseSuccess(wp)
 
 
