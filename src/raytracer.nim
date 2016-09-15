@@ -1,6 +1,8 @@
 import math, strutils, terminal, times
 import glm
-import format, renderer
+
+import utils/format
+import renderer/renderer
 
 
 proc formatStats(s: Stats): string =
@@ -38,34 +40,34 @@ proc main() =
     fov: 50.0,
     cameraToWorld: mat4(1.0).rotate(vec3(1.0, 0, 0), degToRad(-12.0))
                             .translate(vec3(1.0, 4.0, -3.0)),
-    antialias: Antialias(kind: akGrid, gridSize: 8),
+    antialias: Antialias(kind: akGrid, gridSize: 2),
     bgColor: vec3(0.2, 0.4, 0.6)
   )
 
   let objects = @[
-    Sphere(o: vec3(-5.0, 0.0, -15.0),
+    Sphere(o: point(-5.0, 0.0, -15.0),
            r: 2,
-           color: vec3(1.0, 0.0, 0.0)),
+           albedo: vec3(1.0, 0.0, 0.0)),
 
-    Sphere(o: vec3(-1.0, 0.0, -10.0),
+    Sphere(o: point(-1.0, 0.0, -10.0),
            r: 2,
-           color: vec3(0.0, 1.0, 0.0)),
+           albedo: vec3(0.0, 1.0, 0.0)),
 
-    Sphere(o: vec3(5.0, 0.0, -15.0),
+    Sphere(o: point(5.0, 0.0, -15.0),
            r: 2,
-           color: vec3(0.5, 0.0, 0.0)),
+           albedo: vec3(0.5, 0.0, 0.0)),
 
-    Sphere(o: vec3(0.0, 0.0, -38.0),
+    Sphere(o: point(0.0, 0.0, -38.0),
            r: 2,
-           color: vec3(0.25, 0.0, 0.0)),
+           albedo: vec3(0.25, 0.0, 0.0)),
 
-    Sphere(o: vec3(6.0, 0.0, -30.0),
+    Sphere(o: point(6.0, 0.0, -30.0),
            r: 2,
-           color: vec3(0.0, 0.5, 0.0)),
+           albedo: vec3(0.0, 0.5, 0.0)),
 
-    Plane(o: vec3(0.0, -2.0, 0.0),
-          n: vec3(0.0, 1.0, 0.0),
-          color: vec3(1.0, 1.0, 1.0))
+    Plane(o: point(0.0, -2.0, 0.0),
+          n: vec(0.0, 1.0, 0.0),
+          albedo: vec3(1.0, 1.0, 1.0))
   ]
 
   var scene = Scene(
@@ -92,7 +94,6 @@ proc main() =
     stats = Stats()
 
   while numResponses < numLines:
-    cpuRelax()
     let (available, response) = renderer.tryRecvResult()
     if (available):
       inc numResponses

@@ -1,7 +1,7 @@
 import cpuinfo, locks, os
 
-import concurrency/semaphore
-import concurrency/sharedchannel
+import semaphore
+import sharedchannel
 
 
 template trace(s: string) =

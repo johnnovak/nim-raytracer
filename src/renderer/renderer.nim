@@ -1,8 +1,12 @@
 import math, strutils, terminal, times
 import glm
-import framebuf, geom, shader, workerpool
+
+import ../concurrency/workerpool
+import ../utils/framebuf
+import geom, shader
 
 export geom, framebuf, workerpool
+
 
 type
   AntialiasKind* = enum
@@ -63,11 +67,13 @@ proc primaryRay(w, h, x, y: Natural, xoffs, yoffs: float, fov: float,
     cx = ((2 * (float(x) + xoffs) * r) / float(w) - r) * f
     cy = (1 - 2 * (float(y) + yoffs) / float(h)) * f
 
-  let
-    o = cameraToWorld * DEFAULT_CAMERA_POS
-    dir = cameraToWorld * vec4(cx, cy, -1, 0).normalize
+  var o = cameraToWorld * DEFAULT_CAMERA_POS
+  o.w = 1.0
 
-  result = Ray(o: o.xyz, dir: dir.xyz)
+  var dir = cameraToWorld * vec4(cx, cy, -1, 0).normalize
+  dir.w = 0.0
+
+  result = Ray(o: o, dir: dir)
 
 
 proc trace(ray: var Ray, objects: seq[Object], stats: var Stats) =
@@ -160,9 +166,9 @@ proc renderLine(scene: Scene, opts: Options,
     if step > 1:
       for i in x..<min(x+step, opts.width):
         for j in y..<min(y+step, opts.height):
-          fb.set(i, j, color)
+          fb[i,j] = color
     else:
-      fb.set(x, y, color)
+      fb[x,y] = color
 
   result = stats
 

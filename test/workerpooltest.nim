@@ -1,7 +1,8 @@
 import os
 import unittest
-import workerpool
 import cpuinfo
+
+import concurrency/workerpool
 
 
 let
