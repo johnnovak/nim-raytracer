@@ -1,11 +1,10 @@
 import math, strutils, terminal, times
 import glm
 
-import ../concurrency/workerpool
 import ../utils/framebuf
-import geom, shader
+import geom, shader, stats
 
-export geom, framebuf, workerpool
+export geom, framebuf, stats
 
 
 type
@@ -30,31 +29,6 @@ type
 type
   Scene* = object
     objects*: seq[Object]
-
-type
-  WorkMsg* = object
-    scene*: ptr Scene
-    opts*: Options
-    framebuf*: ptr Framebuf
-    line*: Natural
-    step*: Natural
-    maxStep*: Natural
-
-type
-  Stats* = object
-    numPrimaryRays*: Natural
-    numIntersectionTests*: Natural
-    numIntersectionHits*: Natural
-
-  ResponseMsg* = object
-    stats*: Stats
-
-
-proc `+=`*(l: var Stats, r: Stats) =
-  l.numPrimaryRays += r.numPrimaryRays
-  l.numIntersectionTests += r.numIntersectionTests
-  l.numIntersectionHits += r.numIntersectionHits
-
 
 const
   DEFAULT_CAMERA_POS = vec4(0.0, 0.0, 0.0, 1.0)
@@ -141,8 +115,9 @@ proc calcPixelGridAA(scene: Scene, opts: Options, x, y, size: Natural,
   result = color * (1 / float(nSamples))
 
 
-proc renderLine(scene: Scene, opts: Options,
-                fb: var Framebuf, y, step, maxStep: int): Stats =
+proc renderLine*(scene: Scene, opts: Options,
+                 fb: var Framebuf, y: Natural,
+                 step: Natural = 1, maxStep: Natural =  1): Stats =
 
   assert isPowerOfTwo(step)
   assert isPowerOfTwo(maxStep)
@@ -171,21 +146,4 @@ proc renderLine(scene: Scene, opts: Options,
       fb[x,y] = color
 
   result = stats
-
-
-proc render(msg: WorkMsg): ResponseMsg =
-  let step = if msg.step == 0: 1 else: msg.step
-  let maxStep = if msg.maxStep == 0: 1 else: msg.maxStep
-
-  let stats = renderLine(msg.scene[], msg.opts, msg.framebuf[], msg.line,
-                         step, maxStep)
-
-  result = ResponseMsg(stats: stats)
-
-
-proc initRenderer*(numActiveWorkers: Natural = 0,
-                   poolSize: Natural = 0): WorkerPool[WorkMsg, ResponseMsg] =
-
-  result = initWorkerPool[WorkMsg, ResponseMsg](render, numActiveWorkers,
-                                                poolSize)
 
