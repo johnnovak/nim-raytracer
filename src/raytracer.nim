@@ -30,8 +30,8 @@ when not defined(SINGLE_THREADED):
     result = ResponseMsg(stats: stats)
 
 
-  proc initRenderer(numActiveWorkers: Natural = 0,
-                    poolSize: Natural = 0): WorkerPool[WorkMsg, ResponseMsg] =
+  proc initRenderWorkers(numActiveWorkers: Natural = 0,
+                   poolSize: Natural = 0): WorkerPool[WorkMsg, ResponseMsg] =
 
     result = initWorkerPool[WorkMsg, ResponseMsg](render, numActiveWorkers,
                                                   poolSize)
@@ -44,18 +44,18 @@ proc main() =
     fov: 50.0,
     cameraToWorld: mat4(1.0).rotate(vec3(1.0, 0, 0), degToRad(-12.0))
                             .translate(vec3(1.0, 4.0, -3.0)),
-    antialias: Antialias(kind: akGrid, gridSize: 4),
+    antialias: Antialias(kind: akJittered, gridSize: 5),
     bgColor: vec3(0.2, 0.4, 0.6)
   )
 
   include data/scenes/first.nim
 
   var framebuf = newFramebuf(opts.width, opts.height)
-
   let numLines = opts.height
+  initRenderer()
 
   when not defined(SINGLE_THREADED):
-    var renderer = initRenderer(poolSize = 1)
+    var renderer = initRenderWorkers()
     echo "Using " & $renderer.numActiveWorkers & " CPU cores\n"
 
     renderer.waitForReady()
@@ -118,7 +118,7 @@ proc main() =
 
   printCompleted(tCurr)
 
-  discard framebuf.writePpm("render.ppm", 8, sRGB = false)
+  discard framebuf.writePpm("render.ppm", 8, sRGB = true)
 
 
 main()
