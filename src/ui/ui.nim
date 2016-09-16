@@ -1,6 +1,7 @@
 import math
 import nanovg
-import mathutils
+
+import ../utils/mathutils
 
 # {{{ color definitions
 

@@ -31,14 +31,14 @@ proc `|`*(f: float, d: int): string =
 
 proc formatDuration*(seconds: float): string =
   const
-    SECONDS_IN_MINUTE = 60
-    SECONDS_IN_HOUR = 60 * SECONDS_IN_MINUTE
+    SECS_IN_MINUTE = 60
+    SECS_IN_HOUR = 60 * SECS_IN_MINUTE
 
   var secs = seconds.int
-  var hours = secs div SECONDS_IN_HOUR
-  secs -= hours * SECONDS_IN_HOUR
-  var minutes = secs div SECONDS_IN_MINUTE
-  secs -= minutes * SECONDS_IN_MINUTE
+  var hours = secs div SECS_IN_HOUR
+  secs -= hours * SECS_IN_HOUR
+  var minutes = secs div SECS_IN_MINUTE
+  secs -= minutes * SECS_IN_MINUTE
 
   result = hours | 2 & ":" & minutes | 2 & ":" & secs | 2
 

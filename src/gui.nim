@@ -5,7 +5,10 @@ import glfw, glfw/wrapper as glfwWrapper
 import nanovg
 
 import glad/gl
-import image, format, ui, renderer
+import utils/image
+import utils/format
+import ui/ui
+import renderer/renderer
 
 
 proc keyCb(win: Win, key: Key, scanCode: int, action: KeyAction,
@@ -59,27 +62,27 @@ proc main() =
   )
 
   let objects = @[
-    Sphere(o: vec3(-5.0, 0.0, -15.0),
+    Sphere(o: point(-5.0, 0.0, -15.0),
            r: 2,
            color: vec3(0.9, 0.3, 0.2)),
 
-    Sphere(o: vec3(-1.0, 0.0, -10.0),
+    Sphere(o: point(-1.0, 0.0, -10.0),
            r: 2,
            color: vec3(0.3, 0.9, 0.2)),
 
-    Sphere(o: vec3(5.0, 0.0, -15.0),
+    Sphere(o: point(5.0, 0.0, -15.0),
            r: 2,
            color: vec3(0.2, 0.3, 0.9)),
 
-    Sphere(o: vec3(0.0, 0.0, -38.0),
+    Sphere(o: point(0.0, 0.0, -38.0),
            r: 2,
            color: vec3(0.9, 0.8, 0.2)),
 
-    Sphere(o: vec3(6.0, 0.0, -30.0),
+    Sphere(o: point(6.0, 0.0, -30.0),
            r: 2,
            color: vec3(0.6, 0.5, 0.9)),
 
-    Plane(o: vec3(0.0, -2.0, 0.0),
+    Plane(o: point(0.0, -2.0, 0.0),
           n: vec3(0.0, 1.0, 0.0),
           color: vec3(1.0, 1.0, 1.0))
   ]

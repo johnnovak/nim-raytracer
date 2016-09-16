@@ -1,6 +1,8 @@
 import endians, math
 import glm
+
 import color, mathutils
+
 
 type
   FramebufObj = object
@@ -17,35 +19,35 @@ proc newFramebuf*(w, h: Natural): Framebuf =
   result.data = newSeq[float32](w * h * 3)
 
 
-proc set*(fb: var Framebuf, x, y: Natural, color: Vec3[float64]) =
+proc `[]=`*(fb: var Framebuf, x, y: Natural, color: Vec3[float64]) =
   assert x < fb.w
   assert y < fb.h
   let offs = (y * fb.w + x) * 3
-  fb.data[offs    ] = float32(color.r)
-  fb.data[offs + 1] = float32(color.g)
-  fb.data[offs + 2] = float32(color.b)
+  fb.data[offs  ] = float32(color.r)
+  fb.data[offs+1] = float32(color.g)
+  fb.data[offs+2] = float32(color.b)
 
-proc set*(fb: var Framebuf, x, y: Natural, color: Vec3[float32]) =
+proc `[]=`*(fb: var Framebuf, x, y: Natural, color: Vec3[float32]) =
   assert x < fb.w
   assert y < fb.h
   let offs = (y * fb.w + x) * 3
-  fb.data[offs    ] = color.r
-  fb.data[offs + 1] = color.g
-  fb.data[offs + 2] = color.b
+  fb.data[offs  ] = color.r
+  fb.data[offs+1] = color.g
+  fb.data[offs+2] = color.b
 
-proc get*(fb: var Framebuf, x, y: Natural): Vec3[float32] =
+proc `[]`*(fb: Framebuf, x, y: Natural): Vec3[float32] =
   assert x < fb.w
   assert y < fb.h
   let offs = (y * fb.w + x) * 3
-  result = vec3(fb.data[offs    ],
-                fb.data[offs + 1],
-                fb.data[offs + 2])
+  result = vec3(fb.data[offs  ],
+                fb.data[offs+1],
+                fb.data[offs+2])
 
 
 proc rect*(fb: var Framebuf, ox, oy, w, h: Natural, color: Vec3[float32]) =
   for x in ox..<ox+w:
     for y in oy..<oy+h:
-      fb.set(x, y, color)
+      fb[x, y] = color
 
 
 proc writePpm*(fb: Framebuf, filename: string,
@@ -79,9 +81,9 @@ proc writePpm*(fb: Framebuf, filename: string,
     try:
       writeHeader()
       for i in countup(0, fb.data.high, 3):
-        writeComponent(outvalue(fb.data[i    ]))
-        writeComponent(outvalue(fb.data[i + 1]))
-        writeComponent(outvalue(fb.data[i + 2]))
+        writeComponent(outvalue(fb.data[i  ]))
+        writeComponent(outvalue(fb.data[i+1]))
+        writeComponent(outvalue(fb.data[i+2]))
       result = true
     except:
       result = false
@@ -99,15 +101,16 @@ when isMainModule:
   var fb = newFramebuf(W, H)
 
   var r, g, b: float
-  fb.set(0, 0, vec3(0.2, 0.6, 0.5))
-  var col = fb.get(0, 0)
+  fb[0,0] = vec3(0.2, 0.6, 0.5)
+  var col = fb[0,0]
 
+  # TODO fix tests
   assert eq(col.r, 0.2)
   assert eq(col.g, 0.6)
   assert eq(col.b, 0.5)
 
-  fb.set(W-1, H-1, vec3(1.0, 0.9, 0.1))
-  col = fb.get(W-1, H-1)
+  fb[W-1, H-1] = vec3(1.0, 0.9, 0.1)
+  col = fb[W-1, H-1]
 
   assert eq(col.r, 1.0)
   assert eq(col.g, 0.9)
@@ -118,7 +121,7 @@ when isMainModule:
       let col = vec3(y / (fb.h-1),
                      x / (fb.w-1),
                      (fb.h-1 - y) / (fb.h-1))
-      fb.set(x, y, col)
+      fb[x,y] = col
 
   assert fb.writePpm("test-8bit.ppm", 8) == true
   assert fb.writePpm("test-16bit.ppm", 16) == true

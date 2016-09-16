@@ -1,19 +1,23 @@
-import math, strutils, terminal, times
+import math, random, strutils, terminal, times
 import glm
-import framebuf, geom, shader, workerpool
 
-export geom, framebuf, workerpool
+import ../utils/framebuf
+import geom, shader, stats
+
+export geom, framebuf, stats
+
 
 type
   AntialiasKind* = enum
-    akNone,
-    akGrid
+    akNone, akGrid, akJittered, akMultiJittered
 
   Antialias* = ref AntialiasObj
   AntialiasObj = object
     case kind*: AntialiasKind
     of akNone: discard
     of akGrid: gridSize*: Natural
+    of akJittered: jgridSize*: Natural
+    of akMultiJittered: n*: Natural
 
 type
   Options* = object
@@ -27,31 +31,6 @@ type
   Scene* = object
     objects*: seq[Object]
 
-type
-  WorkMsg* = object
-    scene*: ptr Scene
-    opts*: Options
-    framebuf*: ptr Framebuf
-    line*: Natural
-    step*: Natural
-    maxStep*: Natural
-
-type
-  Stats* = object
-    numPrimaryRays*: Natural
-    numIntersectionTests*: Natural
-    numIntersectionHits*: Natural
-
-  ResponseMsg* = object
-    stats*: Stats
-
-
-proc `+=`*(l: var Stats, r: Stats) =
-  l.numPrimaryRays += r.numPrimaryRays
-  l.numIntersectionTests += r.numIntersectionTests
-  l.numIntersectionHits += r.numIntersectionHits
-
-
 const
   DEFAULT_CAMERA_POS = vec4(0.0, 0.0, 0.0, 1.0)
 
@@ -63,11 +42,13 @@ proc primaryRay(w, h, x, y: Natural, xoffs, yoffs: float, fov: float,
     cx = ((2 * (float(x) + xoffs) * r) / float(w) - r) * f
     cy = (1 - 2 * (float(y) + yoffs) / float(h)) * f
 
-  let
-    o = cameraToWorld * DEFAULT_CAMERA_POS
-    dir = cameraToWorld * vec4(cx, cy, -1, 0).normalize
+  var o = cameraToWorld * DEFAULT_CAMERA_POS
+  o.w = 1.0
 
-  result = Ray(o: o.xyz, dir: dir.xyz)
+  var dir = cameraToWorld * vec4(cx, cy, -1, 0).normalize
+  dir.w = 0.0
+
+  result = Ray(o: o, dir: dir)
 
 
 proc trace(ray: var Ray, objects: seq[Object], stats: var Stats) =
@@ -107,7 +88,7 @@ proc calcPixelNoAA(scene: Scene, opts: Options, x, y: Natural,
 
 
 proc calcPixelGridAA(scene: Scene, opts: Options, x, y, size: Natural,
-                     stats: var Stats): Vec3[float] =
+                     jitter: bool, stats: var Stats): Vec3[float] =
 
   let
     nSamples = size * size
@@ -120,8 +101,14 @@ proc calcPixelGridAA(scene: Scene, opts: Options, x, y, size: Natural,
       var
         xoffs = float(i) * gridSize + gridSize * 0.5
         yoffs = float(j) * gridSize + gridSize * 0.5
-        ray = primaryRay(opts.width, opts.height, x, y, xoffs, yoffs,
-                         opts.fov, opts.cameraToWorld)
+
+      if jitter:
+        xoffs += random(1.0) - 0.5
+        yoffs += random(1.0) - 0.5
+
+      var ray = primaryRay(opts.width, opts.height, x, y, xoffs, yoffs,
+                           opts.fov, opts.cameraToWorld)
+
       inc stats.numPrimaryRays
       trace(ray, scene.objects, stats)
       samples[j * size + i] = shade(ray, opts.bgColor)
@@ -131,12 +118,19 @@ proc calcPixelGridAA(scene: Scene, opts: Options, x, y, size: Natural,
 
   for i in 0..samples.high:
     color = color + samples[i]
+result = color * (1 / float(nSamples))
+
+
+proc calcPixelMultiJittered(scene: Scene, opts: Options, x, y, size: Natural,
+                            stats: var Stats): Vec3[float] =
 
   result = color * (1 / float(nSamples))
 
 
-proc renderLine(scene: Scene, opts: Options,
-                fb: var Framebuf, y, step, maxStep: int): Stats =
+
+proc renderLine*(scene: Scene, opts: Options,
+                 fb: var Framebuf, y: Natural,
+                 step: Natural = 1, maxStep: Natural =  1): Stats =
 
   assert isPowerOfTwo(step)
   assert isPowerOfTwo(maxStep)
@@ -148,38 +142,33 @@ proc renderLine(scene: Scene, opts: Options,
 
   for x in countup(0, opts.width-1, step):
     if step < maxStep:
-      let mask = step*2 - 1
+      let mask = step * 2 - 1
       if ((x and mask) == 0) and ((y and mask) == 0):
         continue
 
     case opts.antialias.kind:
     of akNone: color = calcPixelNoAA(scene, opts, x, y, stats)
+
     of akGrid: color = calcPixelGridAA(scene, opts, x, y,
-                                      opts.antialias.gridSize, stats)
+                                       opts.antialias.gridSize,
+                                       jitter = false, stats)
+
+    of akJittered: color = calcPixelGridAA(scene, opts, x, y,
+                                           opts.antialias.gridSize,
+                                           jitter = true, stats)
+
+    of akMultiJittered: color = calcPixelMultiJittered(scene, opts, x, y,
+                                             opts.antialias.gridSize, stats)
 
     if step > 1:
       for i in x..<min(x+step, opts.width):
         for j in y..<min(y+step, opts.height):
-          fb.set(i, j, color)
+          fb[i,j] = color
     else:
-      fb.set(x, y, color)
+      fb[x,y] = color
 
   result = stats
 
 
-proc render(msg: WorkMsg): ResponseMsg =
-  let step = if msg.step == 0: 1 else: msg.step
-  let maxStep = if msg.maxStep == 0: 1 else: msg.maxStep
-
-  let stats = renderLine(msg.scene[], msg.opts, msg.framebuf[], msg.line,
-                         step, maxStep)
-
-  result = ResponseMsg(stats: stats)
-
-
-proc initRenderer*(numActiveWorkers: Natural = 0,
-                   poolSize: Natural = 0): WorkerPool[WorkMsg, ResponseMsg] =
-
-  result = initWorkerPool[WorkMsg, ResponseMsg](render, numActiveWorkers,
-                                                poolSize)
-
+proc initRenderer*() =
+  randomize()

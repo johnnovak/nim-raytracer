@@ -1,22 +1,27 @@
 import math
 import glm
-import mathutils
 
+import ../utils/mathutils
+
+
+template point*[T](x, y, z: T): Vec4[T] = vec4(x, y, z, 0.0)
+template vec*[T](x, y, z: T): Vec4[T] = vec4(x, y, z, 1.0)
 
 type
   Object* = ref object of RootObj
-    o*: Vec3[float]
-    color*: Vec3[float]
+    o*: Vec4[float]
+    albedo*: Vec3[float]
 
   Sphere* = ref object of Object
     r*: float
 
   Plane* = ref object of Object
-    n*: Vec3[float]
+    n*: Vec4[float]
 
 type
+  # TODO change to ref when the thread GC bug is fixed
   Ray* = object
-    o*, dir*: Vec3[float]   # origin and normalized direction vector
+    o*, dir*: Vec4[float]   # origin and normalized direction vector
     objHit*: Object         # object hit by the ray
     tHit*: float            # point t on the ray where it hit the object
 
@@ -24,28 +29,28 @@ type
 method `$`*(o: Object): string {.base.} = ""
 
 method `$`*(s: Sphere): string =
-  result = "(Sphere: o=" & $s.o & ", color=" & $s.color &
+  result = "Sphere(o=" & $s.o & ", albedo=" & $s.albedo &
            ", r=" & $s.r & ")"
 
 method `$`*(p: Plane): string =
-  result = "(Plane: o=" & $p.o & ", color=" & $p.color &
+  result = "Plane(o=" & $p.o & ", albedo=" & $p.albedo &
            ", n=" & $p.n & ")"
 
 
 proc `$`*(r: Ray): string =
   var objHit = if r.objHit == nil: "nil" else: $r.objHit
-  result = "(Ray: o=" & $r.o & ", dir=" & $r.dir &
+  result = "Ray(o=" & $r.o & ", dir=" & $r.dir &
            ", objHit=" & objHit & ", tHit=" & $r.tHit & ")"
 
 
 method str*(o: Object): string = ""
 
 method str*(s: Sphere): string =
-  result = "(Sphere: o=" & $s.o & ", color=" & $s.color &
+  result = "Sphere(o=" & $s.o & ", albedo=" & $s.albedo &
            ", r=" & $s.r & ")"
 
 method str*(p: Plane): string =
-  result = "(Plane: o=" & $p.o & ", color=" & $p.color &
+  result = "Plane(o=" & $p.o & ", albedo=" & $p.albedo &
            ", n=" & $p.n & ")"
 
 
@@ -90,14 +95,16 @@ method intersect*(p: Plane, r: var Ray): bool =
 
 when isMainModule:
   var
-    s = Sphere(o: vec3(7.0, 9.0, -5.0), color: vec3(0.0, 0.6, 0.2), r: 4.4)
-    r = Ray(o: vec3(7.0, 9.0, 0.0), dir: vec3(0.0, 0.0, -1.0))
+    s = Sphere(o: point(7.0, 9.0, -5.0),
+               albedo: vec3(0.0, 0.6, 0.2), r: 4.4)
+    r = Ray(o: point(7.0, 9.0, 0.0),
+            dir: vec(0.0, 0.0, -1.0))
   echo r
 
   var
-    p = Plane(o: vec3(1.0, 2.0, 3.0),
-              color: vec3(0.2, 0.75, 0.1),
-              n: vec3(1.0, 0.0, 0.0))
+    p = Plane(o: point(1.0, 2.0, 3.0),
+              albedo: vec3(0.2, 0.75, 0.1),
+              n: vec(1.0, 0.0, 0.0))
 
     intersects = s.intersect(r)
 
