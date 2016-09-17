@@ -40,14 +40,10 @@ when not defined(SINGLE_THREADED):
 
 proc main() =
   let opts = Options(
-    width: 600,
-    height: 400,
-    fov: 50.0,
-    cameraToWorld: mat4(1.0).rotate(vec3(1.0, 0, 0), degToRad(-12.0))
-                            .translate(vec3(1.0, 4.0, 1.5)),
-    antialias: Antialias(kind: akNone, gridSize: 4),
+    width: 1200,
+    height: 800,
+    antialias: Antialias(kind: akJittered, gridSize: 8),
     shadowBias: 0.00000001,
-    bgColor: vec3(0.01, 0.03, 0.05)
   )
 
   include data/scenes/second.nim
