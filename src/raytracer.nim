@@ -4,6 +4,7 @@ import glm
 import renderer/renderer
 import utils/progress
 
+
 when not defined(SINGLE_THREADED):
   import concurrency/workerpool
 
@@ -39,16 +40,17 @@ when not defined(SINGLE_THREADED):
 
 proc main() =
   let opts = Options(
-    width: 1200,
-    height: 800,
+    width: 600,
+    height: 400,
     fov: 50.0,
     cameraToWorld: mat4(1.0).rotate(vec3(1.0, 0, 0), degToRad(-12.0))
-                            .translate(vec3(1.0, 4.0, -3.0)),
-    antialias: Antialias(kind: akCorrelatedMultiJittered, gridSize: 16),
-    bgColor: vec3(0.2, 0.4, 0.6)
+                            .translate(vec3(1.0, 4.0, 1.5)),
+    antialias: Antialias(kind: akNone, gridSize: 4),
+    shadowBias: 0.00000001,
+    bgColor: vec3(0.01, 0.03, 0.05)
   )
 
-  include data/scenes/first.nim
+  include data/scenes/second.nim
 
   var framebuf = newFramebuf(opts.width, opts.height)
   let numLines = opts.height

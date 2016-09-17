@@ -2,9 +2,9 @@ import math, random, strutils, terminal, times
 import glm
 
 import ../utils/framebuf
-import geom, shader, sampling, stats
+import geom, light, shader, sampling, stats
 
-export geom, framebuf, stats
+export geom, framebuf, light, stats
 
 
 type
@@ -27,11 +27,13 @@ type
     fov*: float
     cameraToWorld*: Mat4x4[float]
     antialias*: Antialias
+    shadowBias*: float
     bgColor*: Vec3[float]
 
 type
   Scene* = object
     objects*: seq[Object]
+    lights*: seq[Light]
 
 
 
@@ -70,12 +72,47 @@ proc trace(ray: var Ray, objects: seq[Object], stats: var Stats) =
   ray.objHit = objmin
 
 
-proc shade(ray: Ray, bgColor: Vec3[float]): Vec3[float] =
+proc shade(ray: Ray, scene: Scene, opts: Options,
+           stats: var Stats, debug: bool = false): Vec3[float] =
+
   if ray.objHit == nil:
-    result = bgColor
+    result = opts.bgColor
   else:
-    let o: Object = ray.objHit
-    result = o.getShade(ray)
+    let
+      obj = ray.objHit
+      hit = ray.o + (ray.dir * ray.tHit)
+      hitNormal = obj.normal(hit)
+      viewDir = ray.dir * -1
+
+    if debug:
+        echo "obj: ", obj
+        echo "hit: ", hit
+        echo "hitNormal: ", hitNormal
+        echo "viewDir: ", viewDir
+
+    result = vec3(0.0)
+
+    for light in scene.lights:
+      if debug:
+        echo "----------------------------------------"
+        echo "light: ", light
+      let lightDir = light.direction(hit) * -1
+      if debug:
+        echo "lightDir: ", lightDir
+      var shadowRay = Ray(o: hit + hitNormal * opts.shadowBias, dir: lightDir)
+      if debug:
+        echo "shadowRay: ", shadowRay
+      trace(shadowRay, scene.objects, stats)
+      if debug:
+        echo "shadowRay (after trace): ", shadowRay
+        echo "shadow.hit: ",  shadowRay.o + (shadowRay.dir * shadowRay.tHit)
+      if shadowRay.objHit == nil:
+        result = result + shadeDiffuse(obj, light, hitNormal, lightDir)
+      if debug:
+        echo "result: ", result
+
+
+#    result = shadeFacingRatio(obj, hitNormal, viewDir)
 
 
 proc calcPixelNoSampling(scene: Scene, opts: Options, x, y: Natural,
@@ -86,7 +123,10 @@ proc calcPixelNoSampling(scene: Scene, opts: Options, x, y: Natural,
 
   inc stats.numPrimaryRays
   trace(ray, scene.objects, stats)
-  result = shade(ray, opts.bgColor)
+  var debug = false
+  if x == 160 and y == 125:
+    debug = true
+  result = shade(ray, scene, opts, stats, debug)
 
 
 proc calcPixel(scene: Scene, opts: Options, x, y: Natural,
@@ -102,7 +142,7 @@ proc calcPixel(scene: Scene, opts: Options, x, y: Natural,
 
     inc stats.numPrimaryRays
     trace(ray, scene.objects, stats)
-    result = result + shade(ray, opts.bgColor)
+    result = result + shade(ray, scene, opts, stats)
 
   result *= 1 / samples.len
 
