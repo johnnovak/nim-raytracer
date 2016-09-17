@@ -1,14 +1,15 @@
-import math, os, strutils, terminal, times
+# TODO currently broken
+
+import math, terminal, times
 
 import glm
 import glfw, glfw/wrapper as glfwWrapper
 import nanovg
 
 import glad/gl
-import utils/image
-import utils/format
 import ui/ui
 import renderer/renderer
+import utils/progress
 
 
 proc keyCb(win: Win, key: Key, scanCode: int, action: KeyAction,
@@ -18,36 +19,6 @@ proc keyCb(win: Win, key: Key, scanCode: int, action: KeyAction,
   case key
   of keyEscape: win.shouldClose = true
   else: return
-
-
-proc formatStats(s: Stats): string =
-  let percHits = s.numIntersectionHits / s.numIntersectionTests * 100
-  result =   "numPrimaryRays:       " & $s.numPrimaryRays | 16 &
-           "\nnumIntersectionTests: " & $s.numIntersectionTests | 16 &
-           "\nnumIntersectionHits:  " & $s.numIntersectionHits | 16 &
-           " (" & percHits | (1, 2) & "% of total tests)"
-
-
-proc printProgressBar(currProgress: float) =
-  const maxlen = 68
-  let
-    barlen = int(currProgress * maxlen)
-    currprog = $int(currProgress * 100) | 4 & "%"
-
-  let bar = if barlen == 0: "" else:
-            repeat('=', max(barlen-1, 0)) & ">"
-
-  echo "[" & bar & spaces(max(maxlen-barlen, 0)) & "]" & currprog
-
-
-proc printProgress(currProgress, tCurr, tRemaining: float) =
-  printProgressBar(currProgress)
-  echo "Ellapsed time: " & formatDuration(tCurr) &
-       "\t\tRemaining time: " & formatDuration(tRemaining)
-
-
-proc printStats(stats: Stats) =
-  echo "\n" & formatStats(stats)
 
 
 proc main() =
@@ -61,35 +32,7 @@ proc main() =
     bgColor: vec3(0.3, 0.5, 0.7)
   )
 
-  let objects = @[
-    Sphere(o: point(-5.0, 0.0, -15.0),
-           r: 2,
-           color: vec3(0.9, 0.3, 0.2)),
-
-    Sphere(o: point(-1.0, 0.0, -10.0),
-           r: 2,
-           color: vec3(0.3, 0.9, 0.2)),
-
-    Sphere(o: point(5.0, 0.0, -15.0),
-           r: 2,
-           color: vec3(0.2, 0.3, 0.9)),
-
-    Sphere(o: point(0.0, 0.0, -38.0),
-           r: 2,
-           color: vec3(0.9, 0.8, 0.2)),
-
-    Sphere(o: point(6.0, 0.0, -30.0),
-           r: 2,
-           color: vec3(0.6, 0.5, 0.9)),
-
-    Plane(o: point(0.0, -2.0, 0.0),
-          n: vec3(0.0, 1.0, 0.0),
-          color: vec3(1.0, 1.0, 1.0))
-  ]
-
-  var scene = Scene(
-    objects: objects
-  )
+  include data/scenes/first.nim
 
   var
     doRedraw = false
@@ -198,7 +141,7 @@ proc main() =
     img.copyFrom(framebuf)
     vg.updateImage(imgHandle, img.caddr)
 
-    let 
+    let
       x = (windowWidth - img.w) / 2
       y = (windowHeight - img.h) / 2
 
@@ -249,8 +192,7 @@ proc main() =
     tCurr = epochTime() - tStart
     printProgress(1.0, tCurr, 0)
     printStats(stats)
-
-    echo "\nRendering completed in " & tCurr | (1, 4) & " seconds"
+    printCompleted(tCurr)
 
 
   proc handleUI() =
@@ -336,6 +278,7 @@ proc main() =
 
   renderer.waitForReady()
   discard renderer.close()
+
 
 main()
 
