@@ -72,13 +72,13 @@ method intersect*(s: Sphere, r: var Ray): bool =
 
     delta = quadraticDelta(a, b, c)
 
-  if delta < 0.0:
-    result = false
-  else:
+  if delta >= 0.0:
     var (t1, t2) = solveQuadratic(a, b, c, delta)
-    r.tHit = min(t1, t2)
-    r.objHit = s
-    result = true
+    var t = min(t1, t2)
+    if t > 0:
+      r.tHit = t
+      r.objHit = s
+      result = true
 
 
 method intersect*(p: Plane, r: var Ray): bool =
@@ -89,6 +89,15 @@ method intersect*(p: Plane, r: var Ray): bool =
       r.objHit = p
       r.tHit = t
       result = true
+
+
+method normal*(o: Object, p: Vec4[float]): Vec4[float] = vec4(0.0)
+
+method normal*(s: Sphere, hit: Vec4[float]): Vec4[float] =
+  result = (hit - s.o).normalize
+
+method normal*(p: Plane, hit: Vec4[float]): Vec4[float] =
+  result = p.n
 
 
 # Tests
