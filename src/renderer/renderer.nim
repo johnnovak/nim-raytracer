@@ -2,22 +2,24 @@ import math, random, strutils, terminal, times
 import glm
 
 import ../utils/framebuf
-import geom, shader, stats
+import geom, shader, sampling, stats
 
 export geom, framebuf, stats
 
 
 type
   AntialiasKind* = enum
-    akNone, akGrid, akJittered, akMultiJittered
+    akNone, akGrid, akJittered, akMultiJittered, akCorrelatedMultiJittered
 
   Antialias* = ref AntialiasObj
   AntialiasObj = object
+    gridSize*: Natural
     case kind*: AntialiasKind
     of akNone: discard
-    of akGrid: gridSize*: Natural
-    of akJittered: jgridSize*: Natural
-    of akMultiJittered: n*: Natural
+    of akGrid: discard
+    of akJittered: discard
+    of akMultiJittered: discard
+    of akCorrelatedMultiJittered: discard
 
 type
   Options* = object
@@ -34,13 +36,14 @@ type
 const
   DEFAULT_CAMERA_POS = vec4(0.0, 0.0, 0.0, 1.0)
 
-proc primaryRay(w, h, x, y: Natural, xoffs, yoffs: float, fov: float,
+
+proc primaryRay(w, h: Natural, x, y, fov: float,
                 cameraToWorld: Mat4x4[float]): Ray =
   let
     r = w / h
     f = tan(degToRad(fov) / 2)
-    cx = ((2 * (float(x) + xoffs) * r) / float(w) - r) * f
-    cy = (1 - 2 * (float(y) + yoffs) / float(h)) * f
+    cx = ((2 * x * r) / w.float - r) * f
+    cy = (1 - 2 * y / h.float) * f
 
   var o = cameraToWorld * DEFAULT_CAMERA_POS
   o.w = 1.0
@@ -77,55 +80,33 @@ proc shade(ray: Ray, bgColor: Vec3[float]): Vec3[float] =
     result = o.getShade(ray)
 
 
-proc calcPixelNoAA(scene: Scene, opts: Options, x, y: Natural,
-                   stats: var Stats): Vec3[float] =
+proc calcPixelNoSampling(scene: Scene, opts: Options, x, y: Natural,
+                         stats: var Stats): Vec3[float] =
 
-  var ray = primaryRay(opts.width, opts.height, x, y, xoffs = 0, yoffs = 0,
-                       opts.fov, opts.cameraToWorld)
+  var ray = primaryRay(opts.width, opts.height, x.float, y.float, opts.fov,
+                       opts.cameraToWorld)
+
   inc stats.numPrimaryRays
   trace(ray, scene.objects, stats)
   result = shade(ray, opts.bgColor)
 
 
-proc calcPixelGridAA(scene: Scene, opts: Options, x, y, size: Natural,
-                     jitter: bool, stats: var Stats): Vec3[float] =
+proc calcPixel(scene: Scene, opts: Options, x, y: Natural,
+               samples: seq[Vec2[float]], stats: var Stats): Vec3[float] =
 
-  let
-    nSamples = size * size
-    gridSize = 1.0 / float(size)
-
-  var samples = newSeq[Vec3[float]](nSamples)
-
-  for j in 0..<size:
-    for i in 0..<size:
-      var
-        xoffs = float(i) * gridSize + gridSize * 0.5
-        yoffs = float(j) * gridSize + gridSize * 0.5
-
-      if jitter:
-        xoffs += random(1.0) - 0.5
-        yoffs += random(1.0) - 0.5
-
-      var ray = primaryRay(opts.width, opts.height, x, y, xoffs, yoffs,
-                           opts.fov, opts.cameraToWorld)
-
-      inc stats.numPrimaryRays
-      trace(ray, scene.objects, stats)
-      samples[j * size + i] = shade(ray, opts.bgColor)
-
-  var
-    color = vec3(0.0)
+  result = vec3(0.0)
 
   for i in 0..samples.high:
-    color = color + samples[i]
-result = color * (1 / float(nSamples))
+    var ray = primaryRay(opts.width, opts.height,
+                         x.float + samples[i].x,
+                         y.float + samples[i].y,
+                         opts.fov, opts.cameraToWorld)
 
+    inc stats.numPrimaryRays
+    trace(ray, scene.objects, stats)
+    result = result + shade(ray, opts.bgColor)
 
-proc calcPixelMultiJittered(scene: Scene, opts: Options, x, y, size: Natural,
-                            stats: var Stats): Vec3[float] =
-
-  result = color * (1 / float(nSamples))
-
+  result *= 1 / samples.len
 
 
 proc renderLine*(scene: Scene, opts: Options,
@@ -147,18 +128,28 @@ proc renderLine*(scene: Scene, opts: Options,
         continue
 
     case opts.antialias.kind:
-    of akNone: color = calcPixelNoAA(scene, opts, x, y, stats)
+    of akNone:
+      color = calcPixelNoSampling(scene, opts, x, y, stats)
 
-    of akGrid: color = calcPixelGridAA(scene, opts, x, y,
-                                       opts.antialias.gridSize,
-                                       jitter = false, stats)
+    of akGrid:
+      let m = opts.antialias.gridSize
+      color = calcPixel(scene, opts, x, y,
+                        samples = grid(m, m), stats)
 
-    of akJittered: color = calcPixelGridAA(scene, opts, x, y,
-                                           opts.antialias.gridSize,
-                                           jitter = true, stats)
+    of akJittered:
+      let m = opts.antialias.gridSize
+      color = calcPixel(scene, opts, x, y,
+                        samples = jitteredGrid(m, m), stats)
 
-    of akMultiJittered: color = calcPixelMultiJittered(scene, opts, x, y,
-                                             opts.antialias.gridSize, stats)
+    of akMultiJittered:
+      let m = opts.antialias.gridSize
+      color = calcPixel(scene, opts, x, y,
+                        samples = multiJittered(m, m), stats)
+
+    of akCorrelatedMultiJittered:
+      let m = opts.antialias.gridSize
+      color = calcPixel(scene, opts, x, y,
+                        samples = correlatedMultiJittered(m, m), stats)
 
     if step > 1:
       for i in x..<min(x+step, opts.width):

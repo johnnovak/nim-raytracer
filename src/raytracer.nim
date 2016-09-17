@@ -44,7 +44,7 @@ proc main() =
     fov: 50.0,
     cameraToWorld: mat4(1.0).rotate(vec3(1.0, 0, 0), degToRad(-12.0))
                             .translate(vec3(1.0, 4.0, -3.0)),
-    antialias: Antialias(kind: akJittered, gridSize: 5),
+    antialias: Antialias(kind: akCorrelatedMultiJittered, gridSize: 16),
     bgColor: vec3(0.2, 0.4, 0.6)
   )
 
