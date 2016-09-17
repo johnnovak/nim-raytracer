@@ -4,8 +4,8 @@ import glm
 import ../utils/mathutils
 
 
-template point*[T](x, y, z: T): Vec4[T] = vec4(x, y, z, 0.0)
-template vec*[T](x, y, z: T): Vec4[T] = vec4(x, y, z, 1.0)
+template vec*[T](x, y, z: T): Vec4[T] = vec4(x, y, z, 0.0)
+template point*[T](x, y, z: T): Vec4[T] = vec4(x, y, z, 1.0)
 
 type
   Object* = ref object of RootObj

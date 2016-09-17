@@ -33,12 +33,13 @@ type
   Scene* = object
     objects*: seq[Object]
 
-const
-  DEFAULT_CAMERA_POS = vec4(0.0, 0.0, 0.0, 1.0)
 
 
 proc primaryRay(w, h: Natural, x, y, fov: float,
                 cameraToWorld: Mat4x4[float]): Ray =
+
+  const DEFAULT_CAMERA_POS = point(0.0, 0.0, 0.0)
+
   let
     r = w / h
     f = tan(degToRad(fov) / 2)
@@ -46,10 +47,7 @@ proc primaryRay(w, h: Natural, x, y, fov: float,
     cy = (1 - 2 * y / h.float) * f
 
   var o = cameraToWorld * DEFAULT_CAMERA_POS
-  o.w = 1.0
-
-  var dir = cameraToWorld * vec4(cx, cy, -1, 0).normalize
-  dir.w = 0.0
+  var dir = cameraToWorld * vec(cx, cy, -1).normalize
 
   result = Ray(o: o, dir: dir)
 
@@ -163,3 +161,4 @@ proc renderLine*(scene: Scene, opts: Options,
 
 proc initRenderer*() =
   randomize()
+
