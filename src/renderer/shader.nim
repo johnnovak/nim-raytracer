@@ -9,11 +9,12 @@ proc shadeFacingRatio*(obj: Object, n, v: Vec4[float]): Vec3[float] =
   result = obj.albedo * max(0, n.dot(v))
 
 
-proc shadeDiffuse*(obj: Object, light: Light,
-                   hitNormal, lightDir: Vec4[float]): Vec3[float] =
+proc shadeDiffuse*(obj: Object, si: ShadingInfo,
+                   hitNormal: Vec4[float]): Vec3[float] =
 
-  result = obj.albedo / PI * light.intensity * light.color *
-           max(0, hitNormal.dot(lightDir))
+  result = obj.albedo / PI *
+           si.lightIntensity *
+           max(0, hitNormal.dot(si.lightDir * -1))
 
 
 #method getShade*(p: Plane, r: Ray): Vec3[float] =

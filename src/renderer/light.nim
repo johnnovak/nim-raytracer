@@ -16,6 +16,10 @@ type
   PointLight* = ref object of Light
     pos*: Vec4[float]
 
+type
+  ShadingInfo* = ref object
+    lightDir*: Vec4[float]
+    lightIntensity*: Vec3[float]
 
 const
   DEFAULT_LIGHT_POS = point(0.0, 0.0, 0.0)
@@ -35,14 +39,23 @@ method `$`*(i: PointLight): string =
            ", pos=" & $i.pos & ")"
 
 
-method direction*(i: Light, p: Vec4[float]): Vec4[float] {.base.} = vec4(0.0)
+method getShadingInfo*(i: Light, p: Vec4[float]): ShadingInfo {.base.} = ShadingInfo()
 
-method direction*(i: DistantLight, p: Vec4[float]): Vec4[float] =
-  result = i.dir
+method getShadingInfo*(i: DistantLight, p: Vec4[float]): ShadingInfo =
+  result = ShadingInfo(
+    lightDir: i.dir,
+    lightIntensity: i.color * i.intensity
+  )
 
-method direction*(i: PointLight, p: Vec4[float]): Vec4[float] =
-  result = p - i.pos
+method getShadingInfo*(i: PointLight, p: Vec4[float]): ShadingInfo =
+  var lightDir = p - i.pos
+  let r2 = lightDir.length2()
+  lightDir = lightDir.normalize()
 
+  result = ShadingInfo(
+    lightDir: lightDir,
+    lightIntensity: i.color * i.intensity / (4*PI * r2)
+  )
 
 #proc newPointLight(color: Vec3[float], intensity: float,
 #                   lightToWorld: Mat4x4[float]): PointLight =

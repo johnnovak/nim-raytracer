@@ -42,11 +42,11 @@ proc main() =
   let opts = Options(
     width: 1200,
     height: 800,
-    antialias: Antialias(kind: akJittered, gridSize: 8),
+    antialias: Antialias(kind: akNone, gridSize: 4),
     shadowBias: 0.00000001,
   )
 
-  include data/scenes/second.nim
+  include data/scenes/spheres-warm.nim
 
   var framebuf = newFramebuf(opts.width, opts.height)
   let numLines = opts.height

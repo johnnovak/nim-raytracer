@@ -87,11 +87,12 @@ proc shade(ray: Ray, scene: Scene, opts: Options,
     result = vec3(0.0)
 
     for light in scene.lights:
-      let lightDir = light.direction(hit) * -1
+      let si = light.getShadingInfo(hit)
+      let lightDir = si.lightDir * -1
       var shadowRay = Ray(o: hit + hitNormal * opts.shadowBias, dir: lightDir)
       trace(shadowRay, scene.objects, stats)
       if shadowRay.objHit == nil:
-        result = result + shadeDiffuse(obj, light, hitNormal, lightDir)
+        result = result + shadeDiffuse(obj, si, hitNormal)
 
 #    result = shadeFacingRatio(obj, hitNormal, viewDir)
 
