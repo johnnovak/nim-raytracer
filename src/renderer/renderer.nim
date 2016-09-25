@@ -54,9 +54,10 @@ proc primaryRay(w, h: Natural, x, y, fov: float,
   result = Ray(o: o, dir: dir)
 
 
-proc trace(ray: var Ray, objects: seq[Object], stats: var Stats) =
+proc trace(ray: var Ray, objects: seq[Object], tNear: float,
+           stats: var Stats) =
   var
-    tmin = Inf
+    tmin = tNear
     objmin: Object = nil
 
   for obj in objects:
@@ -89,8 +90,9 @@ proc shade(ray: Ray, scene: Scene, opts: Options,
     for light in scene.lights:
       let si = light.getShadingInfo(hit)
       let lightDir = si.lightDir * -1
+
       var shadowRay = Ray(o: hit + hitNormal * opts.shadowBias, dir: lightDir)
-      trace(shadowRay, scene.objects, stats)
+      trace(shadowRay, scene.objects, tNear = si.lightDistance, stats)
       if shadowRay.objHit == nil:
         result = result + shadeDiffuse(obj, si, hitNormal)
 
@@ -104,7 +106,7 @@ proc calcPixelNoSampling(scene: Scene, opts: Options, x, y: Natural,
                        scene.cameraToWorld)
 
   inc stats.numPrimaryRays
-  trace(ray, scene.objects, stats)
+  trace(ray, scene.objects, tNear = Inf, stats)
   result = shade(ray, scene, opts, stats)
 
 
@@ -120,7 +122,7 @@ proc calcPixel(scene: Scene, opts: Options, x, y: Natural,
                          scene.fov, scene.cameraToWorld)
 
     inc stats.numPrimaryRays
-    trace(ray, scene.objects, stats)
+    trace(ray, scene.objects, tNear = Inf, stats)
     result = result + shade(ray, scene, opts, stats)
 
   result *= 1 / samples.len
