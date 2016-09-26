@@ -40,7 +40,8 @@ method `$`*(i: PointLight): string =
            ", pos=" & $i.pos & ")"
 
 
-method getShadingInfo*(i: Light, p: Vec4[float]): ShadingInfo {.base.} = ShadingInfo()
+method getShadingInfo*(i: Light, p: Vec4[float]): ShadingInfo {.base.} =
+  ShadingInfo()
 
 method getShadingInfo*(i: DistantLight, p: Vec4[float]): ShadingInfo =
   result = ShadingInfo(
@@ -59,23 +60,6 @@ method getShadingInfo*(i: PointLight, p: Vec4[float]): ShadingInfo =
     lightIntensity: i.color * i.intensity / (4*PI * r2),
     lightDistance: sqrt(r2)
   )
-
-#proc newPointLight(color: Vec3[float], intensity: float,
-#                   lightToWorld: Mat4x4[float]): PointLight =
-#
-#  new(result)
-#  result.color = color
-#  result.intensity = intensity
-#  result.pos = (lightToWorld * DEFAULT_LIGHT_POS)
-#
-#
-#proc newDistantLight(color: Vec3[float], intensity: float,
-#                     lightToWorld: Mat4x4[float]): DistantLight =
-#
-#  new(result)
-#  result.color = color
-#  result.intensity = intensity
-#  result.dir = (lightToWorld * DEFAULT_LIGHT_DIR).normalize
 
 
 # Tests
@@ -100,11 +84,3 @@ method getShadingInfo*(i: PointLight, p: Vec4[float]): ShadingInfo =
 #
 #  let v = vec4(0.0, 0.0, -1.0, 1.0)
 #  let m = mat4(1.0).translate(vec3(0.4, 0.5, 0.3))
-
-  # TODO
-  # http://stackoverflow.com/questions/7574125/multiplying-a-matrix-and-a-vector-in-glm-opengl
-  # GLM mimics GLSL, matrices column-major
-  # column-major matrix should be left-multiplied with a vector
-  # http://stackoverflow.com/questions/24593939/matrix-multiplication-with-vector-in-glsl
-
-

@@ -1,10 +1,10 @@
-import math, random, strutils, terminal, times
+import math, random
 import glm
 
 import ../utils/framebuf
-import geom, light, shader, sampling, stats
+import geom, light, material, scene, shader, sampling, stats
 
-export geom, framebuf, light, stats
+export framebuf, geom, light, material, scene, stats
 
 
 type
@@ -21,20 +21,10 @@ type
     of akMultiJittered: discard
     of akCorrelatedMultiJittered: discard
 
-type
   Options* = object
     width*, height*: Natural
     antialias*: Antialias
     shadowBias*: float
-
-type
-  Scene* = object
-    objects*: seq[Object]
-    lights*: seq[Light]
-    fov*: float
-    cameraToWorld*: Mat4x4[float]
-    bgColor*: Vec3[float]
-
 
 
 proc primaryRay(w, h: Natural, x, y, fov: float,
@@ -48,55 +38,58 @@ proc primaryRay(w, h: Natural, x, y, fov: float,
     cx = ((2 * x * r) / w.float - r) * f
     cy = (1 - 2 * y / h.float) * f
 
-  var o = cameraToWorld * DEFAULT_CAMERA_POS
+  var pos = cameraToWorld * DEFAULT_CAMERA_POS
   var dir = cameraToWorld * vec(cx, cy, -1).normalize
 
-  result = Ray(o: o, dir: dir)
+  result = Ray(pos: pos, dir: dir)
 
 
-proc trace(ray: var Ray, objects: seq[Object], tNear: float,
-           stats: var Stats) =
+proc trace(ray: Ray, objects: seq[Object], tNear: float,
+           stats: var Stats): tuple[objHit: Object, tHit: float] =
   var
     tmin = tNear
     objmin: Object = nil
 
   for obj in objects:
-    var hit = obj.intersect(ray)
+    var tHit = intersect(obj.geometry, ray)
     inc stats.numIntersectionTests
 
-    if hit and ray.tHit < tmin:
-      tmin = ray.tHit
+    if tHit >= 0 and tHit < tmin:
+      tmin = tHit
       objmin = obj
       inc stats.numIntersectionHits
 
-  ray.tHit = tmin
-  ray.objHit = objmin
+  result = (objmin, tmin)
 
 
-proc shade(ray: Ray, scene: Scene, opts: Options,
+proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
            stats: var Stats): Vec3[float] =
 
-  if ray.objHit == nil:
+  if objHit == nil:
     result = scene.bgColor
   else:
     let
-      obj = ray.objHit
-      hit = ray.o + (ray.dir * ray.tHit)
-      hitNormal = obj.normal(hit)
+      obj = objHit
+      hit = ray.pos + (ray.dir * tHit)
+      hitNormal = obj.geometry.normal(hit)
       viewDir = ray.dir * -1
 
     result = vec3(0.0)
 
     for light in scene.lights:
-      let si = light.getShadingInfo(hit)
-      let lightDir = si.lightDir * -1
+      let
+        si = light.getShadingInfo(hit)
+        lightDir = si.lightDir * -1
 
-      var shadowRay = Ray(o: hit + hitNormal * opts.shadowBias, dir: lightDir)
-      trace(shadowRay, scene.objects, tNear = si.lightDistance, stats)
-      if shadowRay.objHit == nil:
-        result = result + shadeDiffuse(obj, si, hitNormal)
+      var shadowRay = Ray(pos: hit + hitNormal * opts.shadowBias,
+                          dir: lightDir)
 
-#    result = shadeFacingRatio(obj, hitNormal, viewDir)
+      let (shadowHit, _) = trace(shadowRay, scene.objects,
+                                 tNear = si.lightDistance, stats)
+      if shadowHit == nil:
+        result = result + shadeDiffuse(obj.material, si, hitNormal)
+
+#    result = shadeFacingRatio(obj.material, hitNormal, viewDir)
 
 
 proc calcPixelNoSampling(scene: Scene, opts: Options, x, y: Natural,
@@ -106,8 +99,8 @@ proc calcPixelNoSampling(scene: Scene, opts: Options, x, y: Natural,
                        scene.cameraToWorld)
 
   inc stats.numPrimaryRays
-  trace(ray, scene.objects, tNear = Inf, stats)
-  result = shade(ray, scene, opts, stats)
+  let (objHit, tHit) = trace(ray, scene.objects, tNear = Inf, stats)
+  result = shade(ray, objHit, tHit, scene, opts, stats)
 
 
 proc calcPixel(scene: Scene, opts: Options, x, y: Natural,
@@ -122,8 +115,8 @@ proc calcPixel(scene: Scene, opts: Options, x, y: Natural,
                          scene.fov, scene.cameraToWorld)
 
     inc stats.numPrimaryRays
-    trace(ray, scene.objects, tNear = Inf, stats)
-    result = result + shade(ray, scene, opts, stats)
+    let (objHit, tHit) = trace(ray, scene.objects, tNear = Inf, stats)
+    result = result + shade(ray, objHit, tHit, scene, opts, stats)
 
   result *= 1 / samples.len
 

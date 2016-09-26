@@ -1,18 +1,18 @@
 import math
 import glm
 
-import geom, light
+import light, material
 import ../utils/mathutils
 
 
-proc shadeFacingRatio*(obj: Object, n, v: Vec4[float]): Vec3[float] =
-  result = obj.albedo * max(0, n.dot(v))
+proc shadeFacingRatio*(m: Material, n, v: Vec4[float]): Vec3[float] =
+  result = m.albedo * max(0, n.dot(v))
 
 
-proc shadeDiffuse*(obj: Object, si: ShadingInfo,
+proc shadeDiffuse*(m: Material, si: ShadingInfo,
                    hitNormal: Vec4[float]): Vec3[float] =
 
-  result = obj.albedo / PI *
+  result = m.albedo / PI *
            si.lightIntensity *
            max(0, hitNormal.dot(si.lightDir * -1))
 
