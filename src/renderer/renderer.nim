@@ -55,6 +55,11 @@ proc trace(ray: Ray, objects: seq[Object], tNear: float,
     inc stats.numIntersectionTests
 
     if tHit >= 0 and tHit < tmin:
+      if debug:
+        echo "------ trace ---------"
+        echo "obj: ", obj
+        echo "ray: ", ray
+        echo "------ trace END ----------"
       tmin = tHit
       objmin = obj
       inc stats.numIntersectionHits
