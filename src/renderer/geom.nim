@@ -10,7 +10,7 @@ template point*[T](x, y, z: T): Vec4[T] = vec4(x, y, z, 1.0)
 
 type
   # TODO change to ref when the thread GC bug is fixed
-  Ray* = object
+  Ray* = ref object
     pos*, dir*: Vec4[float]   # origin and normalized direction vector
 
 proc `$`*(r: Ray): string =
