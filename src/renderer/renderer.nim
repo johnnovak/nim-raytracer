@@ -24,11 +24,12 @@ type
   Options* = object
     width*, height*: Natural
     antialias*: Antialias
-    shadowBias*: float
+    bias*: float
+    maxRayDepth*: int
 
 
-proc primaryRay(w, h: Natural, x, y, fov: float,
-                cameraToWorld: Mat4x4[float]): Ray =
+proc castPrimaryRay(w, h: Natural, x, y, fov: float,
+                    cameraToWorld: Mat4x4[float]): Ray =
 
   const DEFAULT_CAMERA_POS = point(0.0, 0.0, 0.0)
 
@@ -38,10 +39,8 @@ proc primaryRay(w, h: Natural, x, y, fov: float,
     cx = ((2 * x * r) / w.float - r) * f
     cy = (1 - 2 * y / h.float) * f
 
-  var pos = cameraToWorld * DEFAULT_CAMERA_POS
-  var dir = cameraToWorld * vec(cx, cy, -1).normalize
-
-  result = Ray(pos: pos, dir: dir)
+  result = Ray(pos: cameraToWorld * DEFAULT_CAMERA_POS,
+               dir: cameraToWorld * vec(cx, cy, -1).normalize)
 
 
 proc trace(ray: Ray, objects: seq[Object], tNear: float,
@@ -51,7 +50,10 @@ proc trace(ray: Ray, objects: seq[Object], tNear: float,
     objmin: Object = nil
 
   for obj in objects:
-    var tHit = intersect(obj.geometry, ray)
+    let rayO = Ray(pos: obj.geometry.worldToObject * ray.pos,
+                   dir: obj.geometry.worldToObject * ray.dir)
+
+    var tHit = intersect(obj.geometry, rayO)
     inc stats.numIntersectionTests
 
     if tHit >= 0 and tHit < tmin:
@@ -62,6 +64,7 @@ proc trace(ray: Ray, objects: seq[Object], tNear: float,
   result = (objmin, tmin)
 
 
+# TODO move scene & options to front
 proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
            stats: var Stats): Vec3[float] =
 
@@ -70,18 +73,20 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
   else:
     let
       obj = objHit
-      hit = ray.pos + (ray.dir * tHit)
-      hitNormal = obj.geometry.normal(hit)
+      hitW = ray.pos + (ray.dir * tHit)
+      hitO = obj.geometry.worldToObject * hitW
+      hitNormal = obj.geometry.objectToWorld * obj.geometry.normal(hitO)
       viewDir = ray.dir * -1
 
     result = vec3(0.0)
 
+    # Calculate contribution from each light
     for light in scene.lights:
       let
-        si = light.getShadingInfo(hit)
+        si = light.getShadingInfo(hitW)
         lightDir = si.lightDir * -1
 
-      var shadowRay = Ray(pos: hit + hitNormal * opts.shadowBias,
+      var shadowRay = Ray(pos: hitW + hitNormal * opts.bias,
                           dir: lightDir)
 
       let (shadowHit, _) = trace(shadowRay, scene.objects,
@@ -89,14 +94,37 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
       if shadowHit == nil:
         result = result + shadeDiffuse(obj.material, si, hitNormal)
 
+    # Calculate reflections
+    let reflection = obj.material.reflection
+    if reflection > 0.0 and ray.depth <= opts.maxRayDepth:
+      let
+        i = ray.dir
+        n = hitNormal
+        r = i - 2 * n.dot(i) * n
+
+      var rayR = Ray(pos: hitW + r * opts.bias,
+                     dir: r,
+                     depth: ray.depth + 1)
+
+      let (objHitR, tHitR) = trace(rayR, scene.objects, tNear = Inf, stats)
+
+      var reflColor: Vec3[float]
+      if objHitR != nil:
+        reflColor = shade(rayR, objHitR, tHitR, scene, opts, stats)
+      else:
+        reflColor = scene.bgColor
+
+      result = (1.0 - reflection) * result +
+                      reflection  * reflColor
+
 #    result = shadeFacingRatio(obj.material, hitNormal, viewDir)
 
 
 proc calcPixelNoSampling(scene: Scene, opts: Options, x, y: Natural,
                          stats: var Stats): Vec3[float] =
 
-  var ray = primaryRay(opts.width, opts.height, x.float, y.float, scene.fov,
-                       scene.cameraToWorld)
+  var ray = castPrimaryRay(opts.width, opts.height, x.float, y.float,
+                           scene.fov, scene.cameraToWorld)
 
   inc stats.numPrimaryRays
   let (objHit, tHit) = trace(ray, scene.objects, tNear = Inf, stats)
@@ -109,10 +137,10 @@ proc calcPixel(scene: Scene, opts: Options, x, y: Natural,
   result = vec3(0.0)
 
   for i in 0..samples.high:
-    var ray = primaryRay(opts.width, opts.height,
-                         x.float + samples[i].x,
-                         y.float + samples[i].y,
-                         scene.fov, scene.cameraToWorld)
+    var ray = castPrimaryRay(opts.width, opts.height,
+                             x.float + samples[i].x,
+                             y.float + samples[i].y,
+                             scene.fov, scene.cameraToWorld)
 
     inc stats.numPrimaryRays
     let (objHit, tHit) = trace(ray, scene.objects, tNear = Inf, stats)

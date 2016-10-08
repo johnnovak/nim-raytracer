@@ -40,10 +40,11 @@ when not defined(SINGLE_THREADED):
 
 proc main() =
   let opts = Options(
-    width: 1200,
-    height: 800,
+    width: 600,
+    height: 400,
     antialias: Antialias(kind: akNone, gridSize: 4),
-    shadowBias: 0.00000001,
+    bias: 0.00000001,
+    maxRayDepth: 5
   )
 
   include data/scenes/spheres-pointlight1.nim
