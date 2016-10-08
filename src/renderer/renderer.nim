@@ -75,15 +75,15 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
       obj = objHit
       hitW = ray.pos + (ray.dir * tHit)
       hitO = obj.geometry.worldToObject * hitW
-      hitNormal = obj.geometry.normal(hitW)
+      hitNormal = obj.geometry.normal(hitO)
       viewDir = ray.dir * -1
 
     if debug:
-      echo "obj: ", obj
+#      echo "obj: ", obj
       echo "hitW: ", hitW
       echo "hitO: ", hitO
       echo "hitNormal: ", hitNormal
-      echo "viewDir: ", viewDir
+#      echo "viewDir: ", viewDir
 
     result = vec3(0.0)
 
@@ -109,7 +109,8 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
         echo "lightDir: ", lightDir
         echo "result: ", result
         echo "si: ", si
-        echo "shadowHit: ", shadowHit
+        if shadowHit != nil:
+          echo "shadowHit: ", shadowHit
 
     # Calculate reflections
     let reflection = obj.material.reflection
