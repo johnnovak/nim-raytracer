@@ -44,7 +44,7 @@ proc castPrimaryRay(w, h: Natural, x, y, fov: float,
 
 
 proc trace(ray: Ray, objects: seq[Object], tNear: float,
-           stats: var Stats): tuple[objHit: Object, tHit: float] =
+           stats: var Stats, debug: bool): tuple[objHit: Object, tHit: float] =
   var
     tmin = tNear
     objmin: Object = nil
@@ -66,7 +66,7 @@ proc trace(ray: Ray, objects: seq[Object], tNear: float,
 
 # TODO move scene & options to front
 proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
-           stats: var Stats): Vec3[float] =
+           stats: var Stats, debug: bool): Vec3[float] =
 
   if objHit == nil:
     result = scene.bgColor
@@ -75,8 +75,15 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
       obj = objHit
       hitW = ray.pos + (ray.dir * tHit)
       hitO = obj.geometry.worldToObject * hitW
-      hitNormal = obj.geometry.normal(hitO)
+      hitNormal = obj.geometry.normal(hitW)
       viewDir = ray.dir * -1
+
+    if debug:
+      echo "obj: ", obj
+      echo "hitW: ", hitW
+      echo "hitO: ", hitO
+      echo "hitNormal: ", hitNormal
+      echo "viewDir: ", viewDir
 
     result = vec3(0.0)
 
@@ -90,9 +97,19 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
                           dir: lightDir)
 
       let (shadowHit, _) = trace(shadowRay, scene.objects,
-                                 tNear = si.lightDistance, stats)
+                                 tNear = si.lightDistance, stats, debug)
+
+      var sh = shadowHit
+
       if shadowHit == nil:
         result = result + shadeDiffuse(obj.material, si, hitNormal)
+
+      if debug:
+        echo "shadowRay: ", shadowRay
+        echo "lightDir: ", lightDir
+        echo "result: ", result
+        echo "si: ", si
+        echo "shadowHit: ", shadowHit
 
     # Calculate reflections
     let reflection = obj.material.reflection
@@ -106,11 +123,11 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
                      dir: r,
                      depth: ray.depth + 1)
 
-      let (objHitR, tHitR) = trace(rayR, scene.objects, tNear = Inf, stats)
+      let (objHitR, tHitR) = trace(rayR, scene.objects, tNear = Inf, stats, false)
 
       var reflColor: Vec3[float]
       if objHitR != nil:
-        reflColor = shade(rayR, objHitR, tHitR, scene, opts, stats)
+        reflColor = shade(rayR, objHitR, tHitR, scene, opts, stats, false)
       else:
         reflColor = scene.bgColor
 
@@ -127,8 +144,9 @@ proc calcPixelNoSampling(scene: Scene, opts: Options, x, y: Natural,
                            scene.fov, scene.cameraToWorld)
 
   inc stats.numPrimaryRays
-  let (objHit, tHit) = trace(ray, scene.objects, tNear = Inf, stats)
-  result = shade(ray, objHit, tHit, scene, opts, stats)
+  var debug = x == 210 and y == 460
+  let (objHit, tHit) = trace(ray, scene.objects, tNear = Inf, stats, debug)
+  result = shade(ray, objHit, tHit, scene, opts, stats, debug)
 
 
 proc calcPixel(scene: Scene, opts: Options, x, y: Natural,
@@ -143,8 +161,8 @@ proc calcPixel(scene: Scene, opts: Options, x, y: Natural,
                              scene.fov, scene.cameraToWorld)
 
     inc stats.numPrimaryRays
-    let (objHit, tHit) = trace(ray, scene.objects, tNear = Inf, stats)
-    result = result + shade(ray, objHit, tHit, scene, opts, stats)
+    let (objHit, tHit) = trace(ray, scene.objects, tNear = Inf, stats, false)
+    result = result + shade(ray, objHit, tHit, scene, opts, stats, false)
 
   result *= 1 / samples.len
 

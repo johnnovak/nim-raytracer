@@ -40,6 +40,12 @@ method `$`*(i: PointLight): string =
            ", pos=" & $i.pos & ")"
 
 
+proc `$`*(si: ShadingInfo): string =
+  result = "ShadingInfo(lightDir=" & $si.lightDir &
+           ", lightIntensity=" & $si.lightIntensity &
+           ", lightDistance=" & $si.lightDistance & ")"
+
+
 method getShadingInfo*(i: Light, p: Vec4[float]): ShadingInfo {.base.} =
   ShadingInfo()
 

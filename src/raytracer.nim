@@ -40,8 +40,8 @@ when not defined(SINGLE_THREADED):
 
 proc main() =
   let opts = Options(
-    width: 600,
-    height: 400,
+    width: 1200,
+    height: 800,
     antialias: Antialias(kind: akNone, gridSize: 4),
     bias: 0.00000001,
     maxRayDepth: 5

@@ -92,7 +92,7 @@ method normal*(g: Geometry, p: Vec4[float]): Vec4[float] {.base.} =
   vec4(0.0)
 
 method normal*(s: Sphere, hit: Vec4[float]): Vec4[float] =
-  result = hit.normalize
+  result = (hit - point(0.0, 0.0, 0.0)).normalize
 
 method normal*(p: Plane, hit: Vec4[float]): Vec4[float] =
   result = vec(0.0, 1.0, 0.0)
