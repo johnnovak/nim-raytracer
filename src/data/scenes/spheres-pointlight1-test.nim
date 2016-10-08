@@ -1,12 +1,14 @@
 let objects = @[
   Object(
     name: "ball3",
-    geometry: Sphere(o: point(-5.0, 2.0, -10.0), r: 2),
+    geometry: initSphere(
+      objectToWorld = mat4(1.0).translate(vec3(-5.0, 2.0, -10.0)),
+      r = 2),
     material: Material(albedo: vec3(0.1, 0.7, 0.2))
   ),
   Object(
     name: "ground",
-    geometry: Plane(o: point(0.0, 0.0, 0.0), n: vec(0.0, 1.0, 0.0)),
+    geometry: initPlane(objectToWorld = mat4(1.0)),
     material: Material(albedo: vec3(0.4))
   )
 ]
@@ -15,7 +17,7 @@ let objects = @[
 var lights = newSeq[Light]()
 
 lights.add(
-  PointLight(color: vec3(1.0, 0.8, 0.5), intensity: 2000.0,
+  PointLight(color: vec3(1.0, 0.8, 0.5), intensity: 8000.0,
                pos: vec(3.0, 6.0, -12.0))
 )
 
