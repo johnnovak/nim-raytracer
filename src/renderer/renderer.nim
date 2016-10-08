@@ -104,7 +104,8 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
         echo "lightDir: ", lightDir
         echo "result: ", result
         echo "si: ", si
-#        echo "shadowHit: ", sh        TODO error
+        if shadowHit != nil:
+          echo "shadowHit: ", shadowHit
 
 #    result = shadeFacingRatio(obj.material, hitNormal, viewDir)
 
