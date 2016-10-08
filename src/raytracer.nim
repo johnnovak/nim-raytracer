@@ -47,7 +47,7 @@ proc main() =
     maxRayDepth: 5
   )
 
-  include data/scenes/spheres-pointlight1.nim
+  include data/scenes/spheres-pointlight1-test.nim
 
   var framebuf = newFramebuf(opts.width, opts.height)
   let numLines = opts.height
