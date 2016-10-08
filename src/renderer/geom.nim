@@ -9,9 +9,9 @@ template point*[T](x, y, z: T): Vec4[T] = vec4(x, y, z, 1.0)
 
 
 type
-  # TODO change to ref when the thread GC bug is fixed
-  Ray* = object
+  Ray* = ref object
     pos*, dir*: Vec4[float]   # origin and normalized direction vector
+    depth*: int               # ray depth (number of recursions)
 
 proc `$`*(r: Ray): string =
   result = "Ray(pos=" & $r.pos & ", dir=" & $r.dir & ")"
@@ -19,31 +19,38 @@ proc `$`*(r: Ray): string =
 
 type
   Geometry* = ref object of RootObj
-    o*: Vec4[float]
+    objectToWorld*: Mat4x4[float]
+    worldToObject*: Mat4x4[float]
 
   Sphere* = ref object of Geometry
     r*: float
 
   Plane* = ref object of Geometry
-    n*: Vec4[float]
+    discard
+
+
+proc initSphere*(r: float, objectToWorld: Mat4x4[float]): Sphere =
+  # TODO cleanup
+  var o2w = objectToWorld
+  result = Sphere(r: r,
+                  objectToWorld: objectToWorld,
+                  worldToObject: o2w.inverse)
+
+
+proc initPlane*(objectToWorld: Mat4x4[float]): Plane =
+  # TODO cleanup
+  var o2w = objectToWorld
+  result = Plane(objectToWorld: objectToWorld,
+                 worldToObject: o2w.inverse)
 
 
 method `$`*(g: Geometry): string {.base.} = ""
 
 method `$`*(s: Sphere): string =
-  result = "Sphere(o=" & $s.o & ", r=" & $s.r & ")"
+  result = "Sphere(r=" & $s.r & ", objectToWorld: " & $s.objectToWorld & ")"
 
 method `$`*(p: Plane): string =
-  result = "Plane(o=" & $p.o & ", n=" & $p.n & ")"
-
-
-method str*(g: Geometry): string {.base.} = ""
-
-method str*(s: Sphere): string =
-  result = "Sphere(o=" & $s.o & ", r=" & $s.r & ")"
-
-method str*(p: Plane): string =
-  result = "Plane(o=" & $p.o & ", n=" & $p.n & ")"
+  result = "Plane(objectToWorld: " & $p.objectToWorld & ")"
 
 
 method intersect*(g: Geometry, r: Ray): float {.base.} = -Inf
@@ -54,13 +61,13 @@ method intersect*(s: Sphere, r: Ray): float =
         r.dir.y * r.dir.y +
         r.dir.z * r.dir.z
 
-    b = 2 * (r.dir.x * (r.pos.x - s.o.x) +
-             r.dir.y * (r.pos.y - s.o.y) +
-             r.dir.z * (r.pos.z - s.o.z))
+    b = 2 * (r.dir.x * r.pos.x +
+             r.dir.y * r.pos.y +
+             r.dir.z * r.pos.z)
 
-    c = (s.o.x - r.pos.x) * (s.o.x - r.pos.x) +
-        (s.o.y - r.pos.y) * (s.o.y - r.pos.y) +
-        (s.o.z - r.pos.z) * (s.o.z - r.pos.z) - s.r * s.r
+    c = r.pos.x * r.pos.x +
+        r.pos.y * r.pos.y +
+        r.pos.z * r.pos.z - s.r * s.r
 
     delta = quadraticDelta(a, b, c)
 
@@ -72,9 +79,10 @@ method intersect*(s: Sphere, r: Ray): float =
 
 
 method intersect*(p: Plane, r: Ray): float =
-  var denom = p.n.dot(r.dir)
+  let n = vec(0.0, 1.0, 0.0)
+  var denom = n.dot(r.dir)
   if abs(denom) > 1e-6:
-    var t = (p.o - r.pos).dot(p.n) / denom
+    var t = -r.pos.dot(n) / denom
     result = t
   else:
     result = -Inf
@@ -84,16 +92,20 @@ method normal*(g: Geometry, p: Vec4[float]): Vec4[float] {.base.} =
   vec4(0.0)
 
 method normal*(s: Sphere, hit: Vec4[float]): Vec4[float] =
-  result = (hit - s.o).normalize
+  result = hit.normalize
 
 method normal*(p: Plane, hit: Vec4[float]): Vec4[float] =
-  result = p.n
+  result = vec(0.0, 1.0, 0.0)
 
 
 # Tests
 
 #TODO cleanup or remove
-#when isMainModule:
+when isMainModule:
+  var m = mat4(1.0).translate(vec3(1.0, 2.0, 3.0))
+  echo m
+  echo m.inverse
+
 #  var
 #    s = Sphere(o: point(7.0, 9.0, -5.0),
 #               albedo: vec3(0.0, 0.6, 0.2), r: 4.4)
