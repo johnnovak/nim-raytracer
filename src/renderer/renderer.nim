@@ -62,6 +62,7 @@ proc trace(ray: Ray, objects: seq[Object], tNear: float,
         echo "obj: ", obj
         echo "ray: ", ray
         echo "rayO: ", rayO
+        echo "tHit: ", tHit
         echo "------ trace END ----------"
 
       tmin = tHit
@@ -106,8 +107,8 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
       let (shadowHit, _) = trace(shadowRay, scene.objects,
                                  tNear = si.lightDistance, stats, debug)
 
-#      if shadowHit == nil:
-      result = result + shadeDiffuse(obj.material, si, hitNormal)
+      if shadowHit == nil:
+        result = result + shadeDiffuse(obj.material, si, hitNormal)
 
       if debug:
         echo "shadowRay: ", shadowRay
