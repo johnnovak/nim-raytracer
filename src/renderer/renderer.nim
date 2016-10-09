@@ -59,8 +59,10 @@ proc trace(ray: Ray, objects: seq[Object], tNear: float,
     if tHit >= 0 and tHit < tmin:
       if debug:
         echo "------ trace ---------"
-        echo "obj: ", obj
         echo "ray: ", ray
+        echo "obj: ", obj
+        echo "tNear: ", tNear
+        echo ""
         echo "rayO: ", rayO
         echo "tHit: ", tHit
         echo "------ trace END ----------"
@@ -83,14 +85,14 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
       obj = objHit
       hitW = ray.pos + (ray.dir * tHit)
       hitO = obj.geometry.worldToObject * hitW
-      hitNormal = obj.geometry.normal(hitO)
+      hitNormal = obj.geometry.objectToWorld * obj.geometry.normal(hitO)
       viewDir = ray.dir * -1
 
-    if debug:
+#    if debug:
 #      echo "obj: ", obj
-      echo "hitW: ", hitW
-      echo "hitO: ", hitO
-      echo "hitNormal: ", hitNormal
+#      echo "hitW: ", hitW
+#      echo "hitO: ", hitO
+#      echo "hitNormal: ", hitNormal
 #      echo "viewDir: ", viewDir
 
     result = vec3(0.0)
@@ -104,19 +106,19 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
       var shadowRay = Ray(pos: hitW + hitNormal * opts.bias,
                           dir: lightDir)
 
-      let (shadowHit, _) = trace(shadowRay, scene.objects,
-                                 tNear = si.lightDistance, stats, debug)
+      let (shadowObjHit, _) = trace(shadowRay, scene.objects,
+                                    tNear = si.lightDistance, stats, debug)
 
-      if shadowHit == nil:
+      if shadowObjHit == nil:
         result = result + shadeDiffuse(obj.material, si, hitNormal)
 
       if debug:
         echo "shadowRay: ", shadowRay
-        echo "lightDir: ", lightDir
+#        echo "lightDir: ", lightDir
+        echo "si.lightDistance: ", si.lightDistance
         echo "result: ", result
-        echo "si: ", si
-        if shadowHit != nil:
-          echo "shadowHit: ", shadowHit
+        if shadowObjHit != nil:
+          echo "shadowObjHit: ", shadowObjHit
 
     # Calculate reflections
     let reflection = obj.material.reflection
