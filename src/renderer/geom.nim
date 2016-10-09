@@ -33,18 +33,14 @@ type
 
 
 proc initSphere*(r: float, objectToWorld: Mat4x4[float]): Sphere =
-  # TODO cleanup
-  var o2w = objectToWorld
   result = Sphere(r: r,
                   objectToWorld: objectToWorld,
-                  worldToObject: o2w.inverse)
+                  worldToObject: objectToWorld.inverse)
 
 
 proc initPlane*(objectToWorld: Mat4x4[float]): Plane =
-  # TODO cleanup
-  var o2w = objectToWorld
   result = Plane(objectToWorld: objectToWorld,
-                 worldToObject: o2w.inverse)
+                 worldToObject: objectToWorld.inverse)
 
 
 method `$`*(g: Geometry): string {.base.} = ""
