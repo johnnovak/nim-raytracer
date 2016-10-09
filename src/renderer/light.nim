@@ -70,23 +70,9 @@ method getShadingInfo*(i: PointLight, p: Vec4[float]): ShadingInfo =
 
 # Tests
 
-#when isMainModule:
-#  var c2w = mat4(1.0).rotate(vec3(1.0, 0.0, 0.0), degToRad(-12.0))
-#                     .translate(vec3(1.0, 4.0, -3.0))
-#
-#  let dl = newDistantLight(color = vec3(0.2, 0.3, 0.4), intensity = 0.7,
-#                           lightToWorld = c2w)
-#
-#  echo dl
-#
-#
-#  c2w = mat4(1.0).rotate(vec3(0.0, 0.0, 1.0), degToRad(90.0))
-#                 .translate(vec3(1.0, 4.0, -3.0))
-#
-#  let pl = newPointLight(color = vec3(0.2, 0.3, 0.4), intensity = 0.7,
-#                         lightToWorld = c2w)
-#
-#  echo pl
-#
-#  let v = vec4(0.0, 0.0, -1.0, 1.0)
-#  let m = mat4(1.0).translate(vec3(0.4, 0.5, 0.3))
+when isMainModule:
+  let pl = PointLight(color: vec3(0.2, 0.3, 0.4), intensity: 0.7,
+                      pos: point(1.0, 2.0, 3.0))
+
+  echo pl.getShadingInfo(point(10.0, 20.0, 30.0))
+

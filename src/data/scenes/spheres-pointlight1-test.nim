@@ -13,7 +13,7 @@ var lights = newSeq[Light]()
 
 lights.add(
   PointLight(color: vec3(1.0, 0.8, 0.5), intensity: 2000.0,
-               pos: vec(3.0, 6.0, -12.0))
+               pos: point(3.0, 6.0, -12.0))
 )
 
 

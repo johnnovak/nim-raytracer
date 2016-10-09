@@ -88,12 +88,12 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
       hitNormal = obj.geometry.objectToWorld * obj.geometry.normal(hitO)
       viewDir = ray.dir * -1
 
-#    if debug:
-#      echo "obj: ", obj
-#      echo "hitW: ", hitW
-#      echo "hitO: ", hitO
-#      echo "hitNormal: ", hitNormal
-#      echo "viewDir: ", viewDir
+    if debug:
+      echo "obj: ", obj
+      echo "hitW: ", hitW
+      echo "hitO: ", hitO
+      echo "hitNormal: ", hitNormal
+      echo "viewDir: ", viewDir
 
     result = vec3(0.0)
 
@@ -115,7 +115,7 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
       if debug:
         echo "shadowRay: ", shadowRay
 #        echo "lightDir: ", lightDir
-        echo "si.lightDistance: ", si.lightDistance
+        echo "si: ", si
         echo "result: ", result
         if shadowObjHit != nil:
           echo "shadowObjHit: ", shadowObjHit
