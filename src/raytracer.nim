@@ -40,14 +40,14 @@ when not defined(SINGLE_THREADED):
 
 proc main() =
   let opts = Options(
-    width: 600,
-    height: 400,
-    antialias: Antialias(kind: akNone, gridSize: 4),
+    width: 1200,
+    height: 800,
+    antialias: Antialias(kind: akMultiJittered, gridSize: 4),
     bias: 0.00000001,
     maxRayDepth: 5
   )
 
-  include data/scenes/spheres-pointlight1.nim
+  include data/scenes/boxes2.nim
 
   var framebuf = newFramebuf(opts.width, opts.height)
   let numLines = opts.height

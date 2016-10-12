@@ -4,8 +4,15 @@ import glm
 import ../utils/mathutils
 
 
+const X_AXIS* = vec3(1.0, 0.0, 0.0)
+const Y_AXIS* = vec3(0.0, 1.0, 0.0)
+const Z_AXIS* = vec3(0.0, 0.0, 1.0)
+
 template vec*[T](x, y, z: T): Vec4[T] = vec4(x, y, z, 0.0)
+template vec*[T](v: Vec4[T]): Vec4[T] = vec4(v.xyz, 0.0)
+
 template point*[T](x, y, z: T): Vec4[T] = vec4(x, y, z, 1.0)
+template point*[T](v: Vec4[T]): Vec4[T] = vec4(v.xyz, 1.0)
 
 template isVec*[T]  (v: Vec4[T]): bool = v.w == 0.0
 template isPoint*[T](v: Vec4[T]): bool = v.w == 1.0
@@ -21,6 +28,45 @@ proc `$`*(r: Ray): string =
 
 
 type
+  AABB* = ref object
+    vmin, vmax: Vec4[float]
+
+method `$`*(b: AABB): string =
+  result = "AABB(vmin=" & $b.vmin & ", vmax=" & $b.vmax & ")"
+
+method intersect*(b: AABB, r: Ray): float =
+  var
+    tmin = (b.vmin.x - r.pos.x) / r.dir.x
+    tmax = (b.vmax.x - r.pos.x) / r.dir.x
+
+  if (tmin > tmax): swap(tmin, tmax)
+
+  var
+    tymin = (b.vmin.y - r.pos.y) / r.dir.y
+    tymax = (b.vmax.y - r.pos.y) / r.dir.y
+
+  if (tymin > tymax): swap(tymin, tymax)
+
+  if (tmin > tymax) or (tymin > tmax): return -Inf
+
+  if tymin > tmin: tmin = tymin
+  if tymax < tmax: tmax = tymax
+
+  var
+    tzmin = (b.vmin.z - r.pos.z) / r.dir.z
+    tzmax = (b.vmax.z - r.pos.z) / r.dir.z
+
+  if (tzmin > tzmax): swap(tzmin, tzmax)
+
+  if tmin > tzmax or tzmin > tmax: return -Inf
+
+  if tzmin > tmin: tmin = tzmin
+  if tzmax < tmax: tmax = tzmax
+
+  return tmin
+
+
+type
   Geometry* = ref object of RootObj
     objectToWorld*: Mat4x4[float]
     worldToObject*: Mat4x4[float]
@@ -30,6 +76,9 @@ type
 
   Plane* = ref object of Geometry
     discard
+
+  Box* = ref object of Geometry
+    aabb*: AABB
 
 
 proc initSphere*(r: float, objectToWorld: Mat4x4[float]): Sphere =
@@ -42,6 +91,11 @@ proc initPlane*(objectToWorld: Mat4x4[float]): Plane =
   result = Plane(objectToWorld: objectToWorld,
                  worldToObject: objectToWorld.inverse)
 
+proc initBox*(vmin, vmax: Vec4[float], objectToWorld: Mat4x4[float]): Box =
+  result = Box(aabb: AABB(vmin: vmin, vmax: vmax),
+               objectToWorld: objectToWorld,
+               worldToObject: objectToWorld.inverse)
+
 
 method `$`*(g: Geometry): string {.base.} = ""
 
@@ -51,6 +105,9 @@ method `$`*(s: Sphere): string =
 method `$`*(p: Plane): string =
   result = "Plane(objectToWorld: " & $p.objectToWorld & ")"
 
+method `$`*(b: Box): string =
+  result = "Box(aabb=" & $b.aabb &
+           ", objectToWorld: " & $b.objectToWorld & ")"
 
 method intersect*(g: Geometry, r: Ray): float {.base.} = -Inf
 
@@ -87,15 +144,31 @@ method intersect*(p: Plane, r: Ray): float =
   else:
     result = -Inf
 
+method intersect*(b: Box, r: Ray): float =
+  result = intersect(b.aabb, r)
+
 
 method normal*(g: Geometry, p: Vec4[float]): Vec4[float] {.base.} =
   vec4(0.0)
 
 method normal*(s: Sphere, hit: Vec4[float]): Vec4[float] =
-  result = vec4(hit.xyz, 0).normalize
+  result = vec(hit).normalize
 
 method normal*(p: Plane, hit: Vec4[float]): Vec4[float] =
   result = vec(0.0, 1.0, 0.0)
+
+method normal*(b: Box, hit: Vec4[float]): Vec4[float] =
+  let
+    c = (b.aabb.vmin + b.aabb.vmax) * 0.5
+    d = vec(hit - c)
+    dx = abs(b.aabb.vmin.x - b.aabb.vmax.x) * 0.5
+    dy = abs(b.aabb.vmin.y - b.aabb.vmax.y) * 0.5
+    dz = abs(b.aabb.vmin.z - b.aabb.vmax.z) * 0.5
+    bias = 1.0000001
+
+  result = vec(float((d.x / dx * bias).int),
+               float((d.y / dy * bias).int),
+               float((d.z / dz * bias).int)).normalize
 
 
 # Tests
