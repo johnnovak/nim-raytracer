@@ -20,11 +20,11 @@ template isPoint*[T](v: Vec4[T]): bool = v.w == 1.0
 
 type
   Ray* = ref object
-    pos*, dir*: Vec4[float]   # origin and normalized direction vector
+    orig*, dir*: Vec4[float]   # origin and normalized direction vector
     depth*: int               # ray depth (number of recursions)
 
 proc `$`*(r: Ray): string =
-  result = "Ray(pos=" & $r.pos & ", dir=" & $r.dir & ")"
+  result = "Ray(orig=" & $r.orig & ", dir=" & $r.dir & ")"
 
 
 type
@@ -36,14 +36,14 @@ method `$`*(b: AABB): string =
 
 method intersect*(b: AABB, r: Ray): float =
   var
-    tmin = (b.vmin.x - r.pos.x) / r.dir.x
-    tmax = (b.vmax.x - r.pos.x) / r.dir.x
+    tmin = (b.vmin.x - r.orig.x) / r.dir.x
+    tmax = (b.vmax.x - r.orig.x) / r.dir.x
 
   if (tmin > tmax): swap(tmin, tmax)
 
   var
-    tymin = (b.vmin.y - r.pos.y) / r.dir.y
-    tymax = (b.vmax.y - r.pos.y) / r.dir.y
+    tymin = (b.vmin.y - r.orig.y) / r.dir.y
+    tymax = (b.vmax.y - r.orig.y) / r.dir.y
 
   if (tymin > tymax): swap(tymin, tymax)
 
@@ -53,8 +53,8 @@ method intersect*(b: AABB, r: Ray): float =
   if tymax < tmax: tmax = tymax
 
   var
-    tzmin = (b.vmin.z - r.pos.z) / r.dir.z
-    tzmax = (b.vmax.z - r.pos.z) / r.dir.z
+    tzmin = (b.vmin.z - r.orig.z) / r.dir.z
+    tzmax = (b.vmax.z - r.orig.z) / r.dir.z
 
   if (tzmin > tzmax): swap(tzmin, tzmax)
 
@@ -117,13 +117,13 @@ method intersect*(s: Sphere, r: Ray): float =
         r.dir.y * r.dir.y +
         r.dir.z * r.dir.z
 
-    b = 2 * (r.dir.x * r.pos.x +
-             r.dir.y * r.pos.y +
-             r.dir.z * r.pos.z)
+    b = 2 * (r.dir.x * r.orig.x +
+             r.dir.y * r.orig.y +
+             r.dir.z * r.orig.z)
 
-    c = r.pos.x * r.pos.x +
-        r.pos.y * r.pos.y +
-        r.pos.z * r.pos.z - s.r * s.r
+    c = r.orig.x * r.orig.x +
+        r.orig.y * r.orig.y +
+        r.orig.z * r.orig.z - s.r * s.r
 
     delta = quadraticDelta(a, b, c)
 
@@ -139,7 +139,7 @@ method intersect*(p: Plane, r: Ray): float =
   var denom = n.dot(r.dir)
   # TODO
   if abs(denom) > 1e-6:
-    var t = -r.pos.dot(n) / denom
+    var t = -r.orig.dot(n) / denom
     result = t
   else:
     result = -Inf

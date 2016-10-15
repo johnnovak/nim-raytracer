@@ -39,7 +39,7 @@ proc castPrimaryRay(w, h: Natural, x, y, fov: float,
     cx = ((2 * x * r) / w.float - r) * f
     cy = (1 - 2 * y / h.float) * f
 
-  result = Ray(pos: cameraToWorld * DEFAULT_CAMERA_POS,
+  result = Ray(orig: cameraToWorld * DEFAULT_CAMERA_POS,
                dir: cameraToWorld * vec(cx, cy, -1).normalize)
 
 
@@ -50,7 +50,7 @@ proc trace(ray: Ray, objects: seq[Object], tNear: float,
     objmin: Object = nil
 
   for obj in objects:
-    let rayO = Ray(pos: obj.geometry.worldToObject * ray.pos,
+    let rayO = Ray(orig: obj.geometry.worldToObject * ray.orig,
                    dir: obj.geometry.worldToObject * ray.dir)
 
     var tHit = intersect(obj.geometry, rayO)
@@ -73,7 +73,7 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
   else:
     let
       obj = objHit
-      hitW = ray.pos + (ray.dir * tHit)
+      hitW = ray.orig + (ray.dir * tHit)
       hitO = obj.geometry.worldToObject * hitW
       hitNormal = obj.geometry.objectToWorld * obj.geometry.normal(hitO)
       viewDir = ray.dir * -1
@@ -86,7 +86,7 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
         si = light.getShadingInfo(hitW)
         lightDir = si.lightDir * -1
 
-      var shadowRay = Ray(pos: hitW + hitNormal * opts.bias,
+      var shadowRay = Ray(orig: hitW + hitNormal * opts.bias,
                           dir: lightDir)
 
       let (shadowHit, _) = trace(shadowRay, scene.objects,
@@ -102,7 +102,7 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
         n = hitNormal
         r = i - 2 * n.dot(i) * n
 
-      var rayR = Ray(pos: hitW + r * opts.bias,
+      var rayR = Ray(orig: hitW + r * opts.bias,
                      dir: r,
                      depth: ray.depth + 1)
 
