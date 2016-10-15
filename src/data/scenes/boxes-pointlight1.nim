@@ -1,17 +1,17 @@
 let objects = @[
   Object(
-    name: "box1",
+    name: "box-red",
     geometry: initBox(
       objectToWorld = mat4(1.0).translate(vec3(-5.0, 2.0, -18.0))
-                               .rotate(vec3(0.0, 1.0, 0.0), degToRad(-10.0)),
+                               .rotate(X_AXIS, degToRad(-10.0)),
       vmin = vec(-1.0, -1.0, -1.0), vmax = vec(1.0, 1.0, 1.0)),
     material: Material(albedo: vec3(0.9, 0.3, 0.2))
   ),
   Object(
-    name: "box2",
+    name: "box-yellow",
     geometry: initBox(
-      objectToWorld = mat4(1.0).translate(vec3(0.5, 2.0, -8.0))
-                               .rotate(vec3(1.0, 0.0, 0.0), degToRad(-30.0)),
+      objectToWorld = mat4(1.0).translate(vec3(0.5, 2.0, -6.0))
+                               .rotate(X_AXIS, degToRad(-50.0)),
       vmin = vec(-1.0, -1.0, -1.0), vmax = vec(1.0, 1.0, 1.0)),
     material: Material(albedo: vec3(0.6, 0.9, 0.2))
   ),
@@ -19,7 +19,7 @@ let objects = @[
     name: "box3",
     geometry: initBox(
       objectToWorld = mat4(1.0).translate(vec3(-5.0, 2.0, -10.0))
-                               .rotate(vec3(1.0, 0.0, 0.0), degToRad(-50.0)),
+                               .rotate(X_AXIS, degToRad(-50.0)),
       vmin = vec(-1.0, -1.0, -1.0), vmax = vec(1.0, 1.0, 1.0)),
     material: Material(albedo: vec3(0.1, 0.7, 0.2))
   ),
@@ -27,7 +27,7 @@ let objects = @[
     name: "box4",
     geometry: initBox(
       objectToWorld = mat4(1.0).translate(vec3(8.0, 2.0, -15.0))
-                               .rotate(vec3(1.0, 0.0, 0.0), degToRad(-70.0)),
+                               .rotate(X_AXIS, degToRad(-70.0)),
       vmin = vec(-1.0, -1.0, -1.0), vmax = vec(1.0, 1.0, 1.0)),
     material: Material(albedo: vec3(0.2, 0.3, 0.9))
   ),
@@ -35,15 +35,15 @@ let objects = @[
     name: "box5",
     geometry: initBox(
       objectToWorld = mat4(1.0).translate(vec3(4.0, 2.0, -16.0))
-                               .rotate(vec3(1.0, 0.0, 0.0), degToRad(-60.0)),
+                               .rotate(X_AXIS, degToRad(-60.0)),
       vmin = vec(-1.0, -1.0, -1.0), vmax = vec(1.0, 1.0, 1.0)),
     material: Material(albedo: vec3(0.2, 0.5, 0.9))
   ),
   Object(
     name: "box6",
     geometry: initBox(
-      objectToWorld = mat4(1.0).translate(vec3(-2.0, 2.0, -42.0))
-                               .rotate(vec3(1.0, 0.0, 0.0), degToRad(-40.0)),
+      objectToWorld = mat4(1.0).translate(vec3(-2.0, 2.0, -52.0))
+                               .rotate(X_AXIS, degToRad(-40.0)),
       vmin = vec(-1.0, -1.0, -1.0), vmax = vec(1.0, 1.0, 1.0)),
     material: Material(albedo: vec3(0.9, 0.5, 0.2))
   ),
@@ -51,7 +51,7 @@ let objects = @[
     name: "box7",
     geometry: initBox(
       objectToWorld = mat4(1.0).translate(vec3(9.0, 2.0, -30.0))
-                               .rotate(vec3(1.0, 0.0, 0.0), degToRad(-20.0)),
+                               .rotate(X_AXIS, degToRad(-20.0)),
       vmin = vec(-1.0, -1.0, -1.0), vmax = vec(1.0, 1.0, 1.0)),
     material: Material(albedo: vec3(0.6, 0.5, 0.9))
   ),
@@ -76,13 +76,13 @@ lights.add(
 
 
 var scene = Scene(
-  bgColor: vec3(0.0, 0.0, 0.0),
+  bgColor: vec3(0.6, 0.6, 0.5),
 
   objects: objects,
   lights: lights,
 
   fov: 50.0,
-  cameraToWorld: mat4(1.0).rotate(vec3(1.0, 0, 0), degToRad(-12.0))
-                          .translate(vec3(1.0, 5.5, 3.5))
+  cameraToWorld: mat4(1.0).rotate(X_AXIS, degToRad(-12.0))
+                          .translate(vec3(0.5, 5.5, 3.5))
 )
 

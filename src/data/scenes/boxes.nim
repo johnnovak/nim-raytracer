@@ -47,11 +47,11 @@ for i in 0..<ROWS:
 var lights = newSeq[Light]()
 
 lights.add(
-  DistantLight(color: vec3(1.0), intensity: 4.0,
+  DistantLight(color: vec3(1.0), intensity: 9.0,
                dir: vec(-2.0, -0.8, -0.3).normalize)
 )
 lights.add(
-  DistantLight(color: vec3(0.8, 0.3, 0.0), intensity: 1.0,
+  DistantLight(color: vec3(0.8, 0.3, 0.0), intensity: 2.0,
                dir: vec(2.0, -0.8, -1.3).normalize)
 )
 

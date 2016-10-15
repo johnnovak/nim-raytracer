@@ -89,7 +89,7 @@ var scene = Scene(
   lights: lights,
 
   fov: 50.0,
-  cameraToWorld: mat4(1.0).rotate(vec3(1.0, 0, 0), degToRad(-12.0))
+  cameraToWorld: mat4(1.0).rotate(X_AXIS, degToRad(-12.0))
                           .translate(vec3(1.0, 5.5, 3.5))
 )
 

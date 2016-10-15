@@ -40,9 +40,12 @@ when not defined(SINGLE_THREADED):
 
 proc main() =
   let opts = Options(
-    width: 1200,
-    height: 800,
-    antialias: Antialias(kind: akMultiJittered, gridSize: 4),
+#    width: 1200,
+#    height: 800,
+#    antialias: Antialias(kind: akMultiJittered, gridSize: 4),
+    width: 600,
+    height: 400,
+    antialias: Antialias(kind: akNone),
     bias: 0.00000001,
     maxRayDepth: 5
   )

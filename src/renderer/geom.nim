@@ -160,15 +160,13 @@ method normal*(p: Plane, hit: Vec4[float]): Vec4[float] =
 method normal*(b: Box, hit: Vec4[float]): Vec4[float] =
   let
     c = (b.aabb.vmin + b.aabb.vmax) * 0.5
-    d = vec(hit - c)
-    dx = abs(b.aabb.vmin.x - b.aabb.vmax.x) * 0.5
-    dy = abs(b.aabb.vmin.y - b.aabb.vmax.y) * 0.5
-    dz = abs(b.aabb.vmin.z - b.aabb.vmax.z) * 0.5
-    bias = 1.0000001
+    p = hit - c
+    d = (b.aabb.vmin - b.aabb.vmax) * 0.5
+    bias = 1.000001
 
-  result = vec(float((d.x / dx * bias).int),
-               float((d.y / dy * bias).int),
-               float((d.z / dz * bias).int)).normalize
+  result = vec(((p.x / abs(d.x) * bias).int).float,
+               ((p.y / abs(d.y) * bias).int).float,
+               ((p.z / abs(d.z) * bias).int).float).normalize
 
 
 # Tests
