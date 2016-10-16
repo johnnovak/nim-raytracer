@@ -21,10 +21,15 @@ template isPoint*[T](v: Vec4[T]): bool = v.w == 1.0
 type
   Ray* = ref object
     orig*, dir*: Vec4[float]   # origin and normalized direction vector
-    depth*: int               # ray depth (number of recursions)
+    depth*: int                # ray depth (number of recursions)
+    invDir*: Vec3[float]       # 1/dir
 
 proc `$`*(r: Ray): string =
   result = "Ray(orig=" & $r.orig & ", dir=" & $r.dir & ")"
+
+proc initRay*(orig, dir: Vec4[float], depth: int = 1): Ray =
+  result = Ray(orig: orig, dir: dir,
+               invDir: vec3(1/dir.x, 1/dir.y, 1/dir.z))
 
 
 type
@@ -35,28 +40,34 @@ method `$`*(b: AABB): string =
   result = "AABB(vmin=" & $b.vmin & ", vmax=" & $b.vmax & ")"
 
 method intersect*(b: AABB, r: Ray): float =
-  var
-    tmin = (b.vmin.x - r.orig.x) / r.dir.x
-    tmax = (b.vmax.x - r.orig.x) / r.dir.x
+  var tmin, tmax: float
+  if r.invdir.x >= 0:
+    tmin = (b.vmin.x - r.orig.x) * r.invdir.x
+    tmax = (b.vmax.x - r.orig.x) * r.invdir.x
+  else:
+    tmin = (b.vmax.x - r.orig.x) * r.invdir.x
+    tmax = (b.vmin.x - r.orig.x) * r.invdir.x
 
-  if (tmin > tmax): swap(tmin, tmax)
-
-  var
-    tymin = (b.vmin.y - r.orig.y) / r.dir.y
-    tymax = (b.vmax.y - r.orig.y) / r.dir.y
-
-  if (tymin > tymax): swap(tymin, tymax)
+  var tymin, tymax: float
+  if r.invdir.y >= 0:
+    tymin = (b.vmin.y - r.orig.y) * r.invdir.y
+    tymax = (b.vmax.y - r.orig.y) * r.invdir.y
+  else:
+    tymin = (b.vmax.y - r.orig.y) * r.invdir.y
+    tymax = (b.vmin.y - r.orig.y) * r.invdir.y
 
   if (tmin > tymax) or (tymin > tmax): return -Inf
 
   if tymin > tmin: tmin = tymin
   if tymax < tmax: tmax = tymax
 
-  var
-    tzmin = (b.vmin.z - r.orig.z) / r.dir.z
-    tzmax = (b.vmax.z - r.orig.z) / r.dir.z
-
-  if (tzmin > tzmax): swap(tzmin, tzmax)
+  var tzmin, tzmax: float
+  if r.invdir.z >= 0:
+    tzmin = (b.vmin.z - r.orig.z) * r.invdir.z
+    tzmax = (b.vmax.z - r.orig.z) * r.invdir.z
+  else:
+    tzmin = (b.vmax.z - r.orig.z) * r.invdir.z
+    tzmax = (b.vmin.z - r.orig.z) * r.invdir.z
 
   if tmin > tzmax or tzmin > tmax: return -Inf
 

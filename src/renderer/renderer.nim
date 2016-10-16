@@ -39,8 +39,8 @@ proc castPrimaryRay(w, h: Natural, x, y, fov: float,
     cx = ((2 * x * r) / w.float - r) * f
     cy = (1 - 2 * y / h.float) * f
 
-  result = Ray(orig: cameraToWorld * DEFAULT_CAMERA_POS,
-               dir: cameraToWorld * vec(cx, cy, -1).normalize)
+  result = initRay(orig = cameraToWorld * DEFAULT_CAMERA_POS,
+                   dir = cameraToWorld * vec(cx, cy, -1).normalize)
 
 
 proc trace(ray: Ray, objects: seq[Object], tNear: float,
@@ -50,8 +50,8 @@ proc trace(ray: Ray, objects: seq[Object], tNear: float,
     objmin: Object = nil
 
   for obj in objects:
-    let rayO = Ray(orig: obj.geometry.worldToObject * ray.orig,
-                   dir: obj.geometry.worldToObject * ray.dir)
+    let rayO = initRay(orig = obj.geometry.worldToObject * ray.orig,
+                       dir = obj.geometry.worldToObject * ray.dir)
 
     var tHit = intersect(obj.geometry, rayO)
     inc stats.numIntersectionTests
@@ -86,8 +86,8 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
         si = light.getShadingInfo(hitW)
         lightDir = si.lightDir * -1
 
-      var shadowRay = Ray(orig: hitW + hitNormal * opts.bias,
-                          dir: lightDir)
+      var shadowRay = initRay(orig = hitW + hitNormal * opts.bias,
+                              dir = lightDir)
 
       let (shadowHit, _) = trace(shadowRay, scene.objects,
                                  tNear = si.lightDistance, stats)
@@ -102,9 +102,9 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
         n = hitNormal
         r = i - 2 * n.dot(i) * n
 
-      var rayR = Ray(orig: hitW + r * opts.bias,
-                     dir: r,
-                     depth: ray.depth + 1)
+      var rayR = initRay(orig = hitW + r * opts.bias,
+                         dir = r,
+                         depth = ray.depth + 1)
 
       let (objHitR, tHitR) = trace(rayR, scene.objects, tNear = Inf, stats)
 

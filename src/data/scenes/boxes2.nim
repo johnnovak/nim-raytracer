@@ -44,14 +44,6 @@ for i in 0..<N:
 var lights = newSeq[Light]()
 
 lights.add(
-  PointLight(color: vec3(1.0, 0.5, 0.0), intensity: 8000.0,
-               pos: point(2.0, 9.0, -22.0))
-)
-lights.add(
-  DistantLight(color: vec3(1.0, 1.0, 0.5), intensity: 5.0,
-               dir: vec(1.7, -0.5, 2.3).normalize)
-)
-lights.add(
   DistantLight(color: vec3(1.0, 1.0, 1.0), intensity: 0.5,
                dir: vec(3.0, -0.5, -4.0).normalize)
 )

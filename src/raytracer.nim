@@ -50,7 +50,7 @@ proc main() =
     maxRayDepth: 5
   )
 
-  include data/scenes/boxes2.nim
+  include data/scenes/boxtest.nim
 
   var framebuf = newFramebuf(opts.width, opts.height)
   let numLines = opts.height
