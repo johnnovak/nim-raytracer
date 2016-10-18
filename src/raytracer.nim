@@ -43,14 +43,14 @@ proc main() =
 #    width: 1200,
 #    height: 800,
 #    antialias: Antialias(kind: akMultiJittered, gridSize: 4),
-    width: 600,
-    height: 400,
+    width: 1200,
+    height: 800,
     antialias: Antialias(kind: akNone),
     bias: 0.00000001,
     maxRayDepth: 5
   )
 
-  include data/scenes/boxtest.nim
+  include data/scenes/boxes.nim
 
   var framebuf = newFramebuf(opts.width, opts.height)
   let numLines = opts.height

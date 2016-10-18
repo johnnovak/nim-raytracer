@@ -23,23 +23,58 @@ type
     orig*, dir*: Vec4[float]   # origin and normalized direction vector
     depth*: int                # ray depth (number of recursions)
     invDir*: Vec3[float]       # 1/dir
-
-proc `$`*(r: Ray): string =
-  result = "Ray(orig=" & $r.orig & ", dir=" & $r.dir & ")"
+    sign*: array[3, int]
 
 proc initRay*(orig, dir: Vec4[float], depth: int = 1): Ray =
-  result = Ray(orig: orig, dir: dir,
-               invDir: vec3(1/dir.x, 1/dir.y, 1/dir.z))
+  let invDir = vec3(1/dir.x, 1/dir.y, 1/dir.z)
+  let sign = [
+    (invDir.x < 0).int,
+    (invDir.y < 0).int,
+    (invDir.z < 0).int,
+  ]
+  result = Ray(orig: orig, dir: dir, invDir: invDir, sign: sign)
+
+proc `$`*(r: Ray): string =
+  result = "Ray(orig=" & $r.orig & ", dir=" & $r.dir &
+           ", invDir=" & $r.invDir & ")"
 
 
 type
   AABB* = ref object
-    vmin, vmax: Vec4[float]
+    vmin*, vmax*: Vec4[float]
+    bounds*: array[2, Vec4[float]]
 
-method `$`*(b: AABB): string =
+proc initAABB*(vmin, vmax: Vec4[float]): AABB =
+  result = AABB(vmin: vmin, vmax: vmax, bounds: [vmin, vmax])
+
+proc `$`*(b: AABB): string =
   result = "AABB(vmin=" & $b.vmin & ", vmax=" & $b.vmax & ")"
 
-method intersect*(b: AABB, r: Ray): float =
+# From 'Robust BVH Ray Traversal', Thiago Ize, Solid Angle
+# http://jcgt.org/published/0002/02/02/paper.pdf?
+proc xintersect*(b: AABB, r: Ray): float =
+  var
+    tmin = NegInf
+    tmax = Inf
+  let
+    txmin = (b.bounds[  r.sign[0]].x - r.orig.x) * r.invDir.x
+    txmax = (b.bounds[1-r.sign[0]].x - r.orig.x) * r.invDir.x
+    tymin = (b.bounds[  r.sign[1]].y - r.orig.y) * r.invDir.y
+    tymax = (b.bounds[1-r.sign[1]].y - r.orig.y) * r.invDir.y
+    tzmin = (b.bounds[  r.sign[2]].z - r.orig.z) * r.invDir.z
+    tzmax = (b.bounds[1-r.sign[2]].z - r.orig.z) * r.invDir.z
+
+  tmin = max(tzmin, max(tymin, max(txmin, tmin)))
+  tmax = min(tzmax, min(tymax, min(txmax, tmax)))
+  # tmax * = 1.00000024f  # for float
+  tmax *= 1.0000000000000004  # for double
+
+  if tmin <= tmax:
+    result = tmin
+  else:
+    result = NegInf
+
+proc intersect*(b: AABB, r: Ray): float =
   var tmin, tmax: float
   if r.invdir.x >= 0:
     tmin = (b.vmin.x - r.orig.x) * r.invdir.x
@@ -56,7 +91,7 @@ method intersect*(b: AABB, r: Ray): float =
     tymin = (b.vmax.y - r.orig.y) * r.invdir.y
     tymax = (b.vmin.y - r.orig.y) * r.invdir.y
 
-  if (tmin > tymax) or (tymin > tmax): return -Inf
+  if (tmin > tymax) or (tymin > tmax): return NegInf
 
   if tymin > tmin: tmin = tymin
   if tymax < tmax: tmax = tymax
@@ -69,7 +104,7 @@ method intersect*(b: AABB, r: Ray): float =
     tzmin = (b.vmax.z - r.orig.z) * r.invdir.z
     tzmax = (b.vmin.z - r.orig.z) * r.invdir.z
 
-  if tmin > tzmax or tzmin > tmax: return -Inf
+  if tmin > tzmax or tzmin > tmax: return NegInf
 
   if tzmin > tmin: tmin = tzmin
   if tzmax < tmax: tmax = tzmax
@@ -103,7 +138,7 @@ proc initPlane*(objectToWorld: Mat4x4[float]): Plane =
                  worldToObject: objectToWorld.inverse)
 
 proc initBox*(vmin, vmax: Vec4[float], objectToWorld: Mat4x4[float]): Box =
-  result = Box(aabb: AABB(vmin: vmin, vmax: vmax),
+  result = Box(aabb: initAABB(vmin = vmin, vmax = vmax),
                objectToWorld: objectToWorld,
                worldToObject: objectToWorld.inverse)
 
@@ -120,7 +155,7 @@ method `$`*(b: Box): string =
   result = "Box(aabb=" & $b.aabb &
            ", objectToWorld: " & $b.objectToWorld & ")"
 
-method intersect*(g: Geometry, r: Ray): float {.base.} = -Inf
+method intersect*(g: Geometry, r: Ray): float {.base.} = NegInf
 
 method intersect*(s: Sphere, r: Ray): float =
   var
@@ -142,7 +177,7 @@ method intersect*(s: Sphere, r: Ray): float =
     var (t1, t2) = solveQuadratic(a, b, c, delta)
     result = min(t1, t2)
   else:
-    result = -Inf
+    result = NegInf
 
 
 method intersect*(p: Plane, r: Ray): float =
@@ -153,7 +188,7 @@ method intersect*(p: Plane, r: Ray): float =
     var t = -r.orig.dot(n) / denom
     result = t
   else:
-    result = -Inf
+    result = NegInf
 
 method intersect*(b: Box, r: Ray): float =
   result = intersect(b.aabb, r)

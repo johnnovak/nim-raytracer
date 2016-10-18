@@ -1,6 +1,7 @@
 import math
 import glm
 
+const NegZero* = -1e-10000000000
 
 proc eq*(a, b: float64, maxRelDiff: float64 = 1e-15): bool =
   abs(a - b) <= max(abs(a), abs(b)) * maxRelDiff
