@@ -52,7 +52,7 @@ proc `$`*(b: AABB): string =
 
 # From 'Robust BVH Ray Traversal', Thiago Ize, Solid Angle
 # http://jcgt.org/published/0002/02/02/paper.pdf?
-proc xintersect*(b: AABB, r: Ray): float =
+proc intersect*(b: AABB, r: Ray): float =
   var
     tmin = NegInf
     tmax = Inf
@@ -74,7 +74,7 @@ proc xintersect*(b: AABB, r: Ray): float =
   else:
     result = NegInf
 
-proc intersect*(b: AABB, r: Ray): float =
+proc fastIntersect*(b: AABB, r: Ray): float =
   var tmin, tmax: float
   if r.invdir.x >= 0:
     tmin = (b.vmin.x - r.orig.x) * r.invdir.x
@@ -126,6 +126,15 @@ type
   Box* = ref object of Geometry
     aabb*: AABB
 
+  Triangle* = ref object
+    vertexIdx*: array[3, int]
+    normalIdx*: array[3, int]
+
+  TriangleMesh* = ref object of Geometry
+    vertices*: seq[Vec4[float]]
+    normals*: seq[Vec4[float]]
+    faces*: seq[Triangle]
+
 
 proc initSphere*(r: float, objectToWorld: Mat4x4[float]): Sphere =
   result = Sphere(r: r,
@@ -171,10 +180,12 @@ method intersect*(s: Sphere, r: Ray): float =
         r.orig.y * r.orig.y +
         r.orig.z * r.orig.z - s.r * s.r
 
-    delta = quadraticDelta(a, b, c)
+    delta = b*b - 4*a*c
 
   if delta >= 0.0:
-    var (t1, t2) = solveQuadratic(a, b, c, delta)
+    var
+      t1: float = (-b - sign(b) * sqrt(delta)) / 2*a
+      t2: float = c / (a*t1)
     result = min(t1, t2)
   else:
     result = NegInf
@@ -219,31 +230,23 @@ method normal*(b: Box, hit: Vec4[float]): Vec4[float] =
 
 #TODO cleanup or remove
 when isMainModule:
-  var m = mat4(1.0).translate(vec3(1.0, 2.0, 3.0))
-  echo m
-  echo m.inverse
+  var
+    s = initSphere(r = 20, objectToWorld= mat4(1.0))
 
-#  var
-#    s = Sphere(o: point(7.0, 9.0, -5.0),
-#               albedo: vec3(0.0, 0.6, 0.2), r: 4.4)
-#    r = Ray(o: point(7.0, 9.0, 0.0),
-#            dir: vec(0.0, 0.0, -1.0))
-#  echo r
-#
-#  var
-#    p = Plane(o: point(1.0, 2.0, 3.0),
-#              albedo: vec3(0.2, 0.75, 0.1),
-#              n: vec(1.0, 0.0, 0.0))
-#
-#    intersects = s.intersect(r)
-#
-#  assert intersects == true
-#  assert r.objHit == s
-#  var objHit = r.objHit
-#  echo objHit.str
-#  assert eq(r.tHit, 0.6)
-#
-#  echo s
-#  echo p
-#  echo r
+    r = initRay(orig = point(7.0, 9.0, 100.0),
+                dir = vec(0.1, 0.2, -0.9))
+
+  import times
+  let tStart = epochTime()
+
+  let N = 100_000_000
+  var t = 0.0
+
+  for i in 0..<N:
+    t += intersect(s, r)
+
+  let tTotal = epochTime() - tStart
+
+  echo "Total time: " & $tTotal & "s"
+  echo "Millions of intersections per second: " & $(N.float / tTotal / 1_000_000)
 

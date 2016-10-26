@@ -9,7 +9,7 @@ proc eq*(a, b: float64, maxRelDiff: float64 = 1e-15): bool =
 proc eq*(a, b: float32, maxRelDiff: float32 = 1e-7): bool =
   abs(a - b) <= max(abs(a), abs(b)) * maxRelDiff
 
-proc sign*(x: float): float =
+proc sign*(x: float): float {.inline.} =
   if x > 0:
     result = 1
   elif x < 0:
@@ -19,10 +19,10 @@ proc sign*(x: float): float =
 
 proc modulo*(x: float): float = abs(x - floor(x))
 
-proc quadraticDelta*(a, b, c: float): float =
+proc quadraticDelta*(a, b, c: float): float {.inline.} =
   b*b - 4*a*c
 
-proc solveQuadratic*(a, b, c, delta: float): (float, float) =
+proc solveQuadratic*(a, b, c, delta: float): (float, float) {.inline.} =
   var
     t1: float = (-b - sign(b) * sqrt(delta)) / 2*a
     t2: float = c / (a*t1)

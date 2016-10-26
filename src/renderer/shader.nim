@@ -17,6 +17,14 @@ proc shadeDiffuse*(m: Material, si: ShadingInfo,
            max(0, hitNormal.dot(si.lightDir * -1))
 
 
+when isMainModule:
+  let m = Material(albedo: vec3(1.0, 1.0, 1.0), reflection: 0.0)
+  let si = ShadingInfo(
+    lightDir: vec4(0.1, 0.2, 0.3, 0.4),
+    lightIntensity: vec3(0.5, 0.6, 0.7),
+    lightDistance: 10.0)
+  
+  var r = shadeDiffuse(m, si, vec4(1.0, 2.0, 3.0, 4.0))
 #method getShade*(p: Plane, r: Ray): Vec3[float] =
 #  var
 #    hit = r.o + (r.dir * r.tHit)
