@@ -1,6 +1,7 @@
 import math, terminal, times
 import glm
 
+import loaders/obj
 import renderer/renderer
 import utils/progress
 
@@ -43,14 +44,14 @@ proc main() =
 #    width: 1200,
 #    height: 800,
 #    antialias: Antialias(kind: akMultiJittered, gridSize: 4),
-    width: 1200,
-    height: 800,
+    width: 150,
+    height: 100,
     antialias: Antialias(kind: akNone),
     bias: 0.00000001,
     maxRayDepth: 5
   )
 
-  include data/scenes/boxes.nim
+  include data/scenes/mesh-bunny.nim
 
   var framebuf = newFramebuf(opts.width, opts.height)
   let numLines = opts.height

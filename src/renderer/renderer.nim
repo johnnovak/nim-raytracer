@@ -72,11 +72,16 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
     result = scene.bgColor
   else:
     let
-      obj = objHit
       hitW = ray.orig + (ray.dir * tHit)
-      hitO = obj.geometry.worldToObject * hitW
-      hitNormal = obj.geometry.objectToWorld * obj.geometry.normal(hitO)
+      hitO = objHit.geometry.worldToObject * hitW
       viewDir = ray.dir * -1
+
+    # TODO
+    var hitNormal: Vec4[float]
+    if ray.triangleHit == nil:
+      hitNormal = objHit.geometry.objectToWorld * objHit.geometry.normal(hitO)
+    else:
+      hitNormal = TriangleMesh(objHit.geometry).normals[ray.triangleHit.normalIdx[0]]
 
     result = vec3(0.0)
 
@@ -92,10 +97,10 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
       let (shadowHit, _) = trace(shadowRay, scene.objects,
                                  tNear = si.lightDistance, stats)
       if shadowHit == nil:
-        result = result + shadeDiffuse(obj.material, si, hitNormal)
+        result = result + shadeDiffuse(objHit.material, si, hitNormal)
 
     # Calculate reflections
-    let reflection = obj.material.reflection
+    let reflection = objHit.material.reflection
     if reflection > 0.0 and ray.depth <= opts.maxRayDepth:
       let
         i = ray.dir
@@ -117,7 +122,7 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
       result = (1.0 - reflection) * result +
                       reflection  * reflColor
 
-#    result = shadeFacingRatio(obj.material, hitNormal, viewDir)
+#    result = shadeFacingRatio(objHit.material, hitNormal, viewDir)
 
 
 proc calcPixelNoSampling(scene: Scene, opts: Options, x, y: Natural,

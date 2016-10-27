@@ -19,11 +19,17 @@ template isPoint*[T](v: Vec4[T]): bool = v.w == 1.0
 
 
 type
+  Triangle* = ref object
+    vertexIdx*: array[3, int]
+    normalIdx*: array[3, int]
+
+type
   Ray* = ref object
     orig*, dir*: Vec4[float]   # origin and normalized direction vector
     depth*: int                # ray depth (number of recursions)
     invDir*: Vec3[float]       # 1/dir
     sign*: array[3, int]
+    triangleHit*: Triangle
 
 proc initRay*(orig, dir: Vec4[float], depth: int = 1): Ray =
   let invDir = vec3(1/dir.x, 1/dir.y, 1/dir.z)
@@ -126,10 +132,6 @@ type
   Box* = ref object of Geometry
     aabb*: AABB
 
-  Triangle* = ref object
-    vertexIdx*: array[3, int]
-    normalIdx*: array[3, int]
-
   TriangleMesh* = ref object of Geometry
     vertices*: seq[Vec4[float]]
     normals*: seq[Vec4[float]]
@@ -201,8 +203,56 @@ method intersect*(p: Plane, r: Ray): float =
   else:
     result = NegInf
 
+
 method intersect*(b: Box, r: Ray): float =
   result = intersect(b.aabb, r)
+
+
+proc rayTriangleIntersect(r: Ray, v0, v1, v2: Vec4[float]): float =
+  let
+    v0v1 = v1 - v0
+    v0v2 = v2 - v0
+    pvec = r.dir * v0v2
+    det = v0v1.dot(pvec)
+
+  if det < 0.0000001:
+    return NegInf
+
+  let
+    invDet = 1 / det
+    tvec = r.orig - v0
+    u = tvec.dot(pvec) * invDet
+
+  if u < 0 or u > 1:
+    return NegInf
+
+  let
+    qvec = tvec * v0v1
+    v = r.dir.dot(qvec) * invDet
+
+  if v < 0 or u + v > 1:
+    return NegInf
+
+  result = v0v2.dot(qvec) * invDet
+
+
+method intersect(m: TriangleMesh, r: Ray): float =
+  var
+    tMin = Inf
+
+  for tri in m.faces:
+    let
+      v0 = m.vertices[tri.vertexIdx[0]]
+      v1 = m.vertices[tri.vertexIdx[1]]
+      v2 = m.vertices[tri.vertexIdx[2]]
+
+      tHit = rayTriangleIntersect(r, v0, v1, v2)
+
+    if tHit >= 0 and tHit < tMin:
+      tMin = tHit
+      r.triangleHit = tri
+
+  result = tMin
 
 
 method normal*(g: Geometry, p: Vec4[float]): Vec4[float] {.base.} =

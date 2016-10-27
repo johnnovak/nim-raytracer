@@ -40,22 +40,22 @@ proc toVertex(xs, ys, zs: string): Vec4[float] =
     discard  # TODO
 
   result = vec4(x, y, z, 1.0)
-  
+
 
 proc toFaceIdx(s1, s2, s3: string): array[3, int] =
   var i1, i2, i3: int
   try:
-    i1 = parseInt(s1)
+    i1 = parseInt(s1) - 1
   except ValueError:
     discard  # TODO
 
   try:
-    i2 = parseInt(s2)
+    i2 = parseInt(s2) - 1
   except ValueError:
     discard  # TODO
 
   try:
-    i3 = parseInt(s3)
+    i3 = parseInt(s3) - 1
   except ValueError:
     discard  # TODO
 

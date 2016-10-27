@@ -44,12 +44,14 @@ proc `[]`*(fb: Framebuf, x, y: Natural): Vec3[float32] =
                 fb.data[offs+2])
 
 
+# TODO separate file
 proc rect*(fb: var Framebuf, ox, oy, w, h: Natural, color: Vec3[float32]) =
   for x in ox..<ox+w:
     for y in oy..<oy+h:
       fb[x, y] = color
 
 
+# TODO separate file
 proc writePpm*(fb: Framebuf, filename: string,
                bits: range[1..16] = 8, sRGB: bool = true): bool =
   var
