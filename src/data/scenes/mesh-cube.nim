@@ -1,19 +1,22 @@
-let teapot = loadObj("data/meshes/teapot.obj")
+let
+  v = @[point(0.0, 0.0, 0.0), point(1.0, 0.0, 0.0), point(0.0, 1.0, 0.0)]
+  n = @[vec(0.0, 0.0, 1.0), vec(0.0, 0.0, 1.0), vec(0.0, 0.0, 1.0)]
+  t = Triangle(vertexIdx: [0, 1, 2], normalIdx: [0, 1, 2])
+  f = @[t]
 
-teapot.objectToWorld = mat4(1.0).translate(vec3(0.0, 0.0001, -12.0))
-teapot.worldToObject = teapot.objectToWorld.inverse
-
+let cube = TriangleMesh(
+  vertices: v,
+  normals: n,
+  faces: f,
+  objectToWorld: mat4(1.0),
+  worldToObject: mat4(1.0)
+)
 
 let objects = @[
   Object(
-    name: "teapot",
-    geometry: teapot,
+    name: "cube",
+    geometry: cube,
     material: Material(albedo: vec3(0.6, 0.9, 0.2))
-  ),
-  Object(
-    name: "ground",
-    geometry: initPlane(objectToWorld = mat4(1.0)),
-    material: Material(albedo: vec3(0.4))
   )
 ]
 
@@ -37,7 +40,6 @@ var scene = Scene(
   lights: lights,
 
   fov: 50.0,
-  cameraToWorld: mat4(1.0).rotate(X_AXIS, degToRad(-12.0))
-                          .translate(vec3(0.0, 5.5, 1.5))
+  cameraToWorld: mat4(1.0).translate(vec3(0.3, 0.3, 5.0))
 )
 

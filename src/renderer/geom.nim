@@ -23,6 +23,12 @@ type
     vertexIdx*: array[3, int]
     normalIdx*: array[3, int]
 
+proc `$`*(t: Triangle): string =
+  result = "Triangle(vertexIdx=[" & $t.vertexIdx[0] & ", " &
+           $t.vertexIdx[1] & ", " & $t.vertexIdx[2] & "]" &
+           ", normalIdx=[" & $t.normalIdx[0] & ", " &
+           $t.normalIdx[1] & ", " & $t.normalIdx[2] & ")"
+
 type
   Ray* = ref object
     orig*, dir*: Vec4[float]   # origin and normalized direction vector
@@ -30,19 +36,28 @@ type
     invDir*: Vec3[float]       # 1/dir
     sign*: array[3, int]
     triangleHit*: Triangle
+    x*, y*: float              # for debugging
 
-proc initRay*(orig, dir: Vec4[float], depth: int = 1): Ray =
+proc initRay*(orig, dir: Vec4[float], depth: int = 1, x, y: float = 0): Ray =
   let invDir = vec3(1/dir.x, 1/dir.y, 1/dir.z)
   let sign = [
     (invDir.x < 0).int,
     (invDir.y < 0).int,
     (invDir.z < 0).int,
   ]
-  result = Ray(orig: orig, dir: dir, invDir: invDir, sign: sign)
+  result = Ray(orig: orig, dir: dir, invDir: invDir, sign: sign, x: x, y: y)
 
 proc `$`*(r: Ray): string =
   result = "Ray(orig=" & $r.orig & ", dir=" & $r.dir &
-           ", invDir=" & $r.invDir & ")"
+           ", invDir=" & $r.invDir &
+           ", sign=[" & $r.sign[0] &
+           ", " & $r.sign[1] & ", " & $r.sign[2] & "]" &
+           ", x=" & $r.x & ", y=" & $r.y
+
+  if r.triangleHit != nil:
+     result &= ", triangleHit=" & $r.triangleHit
+
+  result &= ")"
 
 
 type
@@ -79,6 +94,7 @@ proc intersect*(b: AABB, r: Ray): float =
     result = tmin
   else:
     result = NegInf
+
 
 proc fastIntersect*(b: AABB, r: Ray): float =
   var tmin, tmax: float
@@ -136,6 +152,8 @@ type
     vertices*: seq[Vec4[float]]
     normals*: seq[Vec4[float]]
     faces*: seq[Triangle]
+    aabb*: AABB
+
 
 
 proc initSphere*(r: float, objectToWorld: Mat4x4[float]): Sphere =
@@ -152,6 +170,32 @@ proc initBox*(vmin, vmax: Vec4[float], objectToWorld: Mat4x4[float]): Box =
   result = Box(aabb: initAABB(vmin = vmin, vmax = vmax),
                objectToWorld: objectToWorld,
                worldToObject: objectToWorld.inverse)
+
+
+proc calcAABB(vertices: seq[Vec4[float]]): AABB =
+  var
+    vmin = point(Inf, Inf, Inf)
+    vmax = point(NegInf, NegInf, NegInf)
+
+  for v in vertices:
+    if v.x < vmin.x: vmin.x = v.x
+    if v.y < vmin.y: vmin.y = v.y
+    if v.z < vmin.z: vmin.z = v.z
+    if v.x > vmax.x: vmax.x = v.x
+    if v.y > vmax.y: vmax.y = v.y
+    if v.z > vmax.z: vmax.z = v.z
+
+  result = initAABB(vmin, vmax)
+
+
+proc initTriangleMesh*(vertices, normals: seq[Vec4[float]],
+                       faces: seq[Triangle],
+                       objectToWorld: Mat4x4[float]): TriangleMesh =
+
+  result = TriangleMesh(vertices: vertices, normals: normals, faces: faces,
+                        objectToWorld: objectToWorld,
+                        worldToObject: objectToWorld.inverse,
+                        aabb: calcAABB(vertices))
 
 
 method `$`*(g: Geometry): string {.base.} = ""
@@ -208,27 +252,27 @@ method intersect*(b: Box, r: Ray): float =
   result = intersect(b.aabb, r)
 
 
-proc rayTriangleIntersect(r: Ray, v0, v1, v2: Vec4[float]): float =
+proc rayTriangleIntersect*(r: Ray, v0, v1, v2: Vec4[float]): float =
   let
-    v0v1 = v1 - v0
-    v0v2 = v2 - v0
-    pvec = r.dir * v0v2
+    v0v1 = (v1 - v0).xyz
+    v0v2 = (v2 - v0).xyz
+    pvec = (r.dir.xyz).cross(v0v2)
     det = v0v1.dot(pvec)
 
-  if det < 0.0000001:
+  if det < 0.000001:
     return NegInf
 
   let
     invDet = 1 / det
-    tvec = r.orig - v0
+    tvec = (r.orig - v0).xyz
     u = tvec.dot(pvec) * invDet
 
   if u < 0 or u > 1:
     return NegInf
 
   let
-    qvec = tvec * v0v1
-    v = r.dir.dot(qvec) * invDet
+    qvec = tvec.cross(v0v1)
+    v = (r.dir.xyz).dot(qvec) * invDet
 
   if v < 0 or u + v > 1:
     return NegInf
@@ -236,7 +280,66 @@ proc rayTriangleIntersect(r: Ray, v0, v1, v2: Vec4[float]): float =
   result = v0v2.dot(qvec) * invDet
 
 
+proc rayTriangleIntersectFast*(r: Ray, v0, v1, v2: Vec4[float]): float =
+  #let v0v1 = (v1 - v0).xyz
+  let
+    v0v1x = v1.x - v0.x
+    v0v1y = v1.y - v0.y
+    v0v1z = v1.z - v0.z
+
+  #let v0v2 = (v2 - v0).xyz
+  let
+    v0v2x = v2.x - v0.x
+    v0v2y = v2.y - v0.y
+    v0v2z = v2.z - v0.z
+
+  #let pvec = (r.dir.xyz).cross(v0v2)
+  let
+    pvecx = r.dir.y * v0v2z - r.dir.z * v0v2y
+    pvecy = r.dir.z * v0v2x - r.dir.x * v0v2z
+    pvecz = r.dir.x * v0v2y - r.dir.y * v0v2x
+
+  #let det = v0v1.dot(pvec)
+  let
+    det = v0v1x * pvecx + v0v1y * pvecy + v0v1z * pvecz
+
+  if det < 0.000001:
+    return NegInf
+
+  let invDet = 1 / det
+
+  #let tvec = (r.orig - v0).xyz
+  let
+    tvecx = r.orig.x - v0.x
+    tvecy = r.orig.y - v0.y
+    tvecz = r.orig.z - v0.z
+
+  #let u = tvec.dot(pvec) * invDet
+  let u = (tvecx * pvecx + tvecy * pvecy + tvecz * pvecz) * invDet
+
+  if u < 0 or u > 1:
+    return NegInf
+
+  #let qvec = tvec.cross(v0v1)
+  let
+    qvecx = tvecy * v0v1z - tvecz * v0v1y
+    qvecy = tvecz * v0v1x - tvecx * v0v1z
+    qvecz = tvecx * v0v1y - tvecy * v0v1x
+
+  #let v = (r.dir.xyz).dot(qvec) * invDet
+  let v = (r.dir.x * qvecx + r.dir.y * qvecy + r.dir.z * qvecz) * invDet
+
+  if v < 0 or u + v > 1:
+    return NegInf
+
+  #result = v0v2.dot(qvec) * invDet
+  result = (v0v2x * qvecx + v0v2y * qvecy +  v0v2z * qvecz) * invDet
+
+
 method intersect(m: TriangleMesh, r: Ray): float =
+  if m.aabb.intersect(r) < 0:
+    return NegInf
+
   var
     tMin = Inf
 
@@ -246,7 +349,7 @@ method intersect(m: TriangleMesh, r: Ray): float =
       v1 = m.vertices[tri.vertexIdx[1]]
       v2 = m.vertices[tri.vertexIdx[2]]
 
-      tHit = rayTriangleIntersect(r, v0, v1, v2)
+      tHit = rayTriangleIntersectFast(r, v0, v1, v2)
 
     if tHit >= 0 and tHit < tMin:
       tMin = tHit

@@ -30,12 +30,12 @@ proc toVertex(xs, ys, zs: string): Vec4[float] =
     discard  # TODO
 
   try:
-    y = parseFloat(xs)
+    y = parseFloat(ys)
   except ValueError:
     discard  # TODO
 
   try:
-    z = parseFloat(xs)
+    z = parseFloat(zs)
   except ValueError:
     discard  # TODO
 
@@ -62,17 +62,20 @@ proc toFaceIdx(s1, s2, s3: string): array[3, int] =
   result = [i1, i2, i3]
 
 
-proc calcNormals(mesh: TriangleMesh) =
+proc calcNormals(normals: var seq[Vec4[float]],
+                 vertices: seq[Vec4[float]], faces: seq[Triangle]) =
   var normIdx = 0
-  for t in mesh.faces:
+  for t in faces:
     let
-      p1 = mesh.vertices[t.vertexIdx[0]]
-      p2 = mesh.vertices[t.vertexIdx[1]]
-      p3 = mesh.vertices[t.vertexIdx[2]]
+      p0 = vertices[t.vertexIdx[0]]
+      p1 = vertices[t.vertexIdx[1]]
+      p2 = vertices[t.vertexIdx[2]]
+      v1 = (p1 - p0).xyz
+      v2 = (p2 - p0).xyz
 
-      n = ((p2 - p1) * (p3 - p1)).normalize
+      n = v1.cross(v2).normalize
 
-    mesh.normals[normIdx] = n
+    normals[normIdx] = vec(n.x, n.y, n.z)
 
     t.normalIdx[0] = normIdx
     t.normalIdx[1] = normIdx
@@ -84,10 +87,13 @@ proc calcNormals(mesh: TriangleMesh) =
 proc loadObj*(fname: string): TriangleMesh =
   var (numVerts, numFaces) = countFacesAndVertices(fname)
 
-  result = TriangleMesh()
-  newSeq(result.vertices, numVerts)
-  newSeq(result.faces, numFaces)
-  newSeq(result.normals, numFaces)  # we calculate 1 normal per face
+  var
+    vertices, normals: seq[Vec4[float]]
+    faces: seq[Triangle]
+
+  newSeq(vertices, numVerts)
+  newSeq(faces, numFaces)
+  newSeq(normals, numFaces)  # we calculate 1 normal per face
 
   var
     vertIdx = 0
@@ -100,7 +106,7 @@ proc loadObj*(fname: string): TriangleMesh =
 
     case c[0]:
     of "v":   # vertex
-      result.vertices[vertIdx] = toVertex(c[1], c[2], c[3])
+      vertices[vertIdx] = toVertex(c[1], c[2], c[3])
       vertIdx += 1
       if vertIdx >= numVerts:
         discard  # TODO
@@ -108,12 +114,16 @@ proc loadObj*(fname: string): TriangleMesh =
     of "f":   # face
       let t = Triangle()
       t.vertexIdx = toFaceIdx(c[1], c[2], c[3])
-      result.faces[faceIdx] = t
+      faces[faceIdx] = t
       faceIdx += 1
       if faceIdx > numFaces:
         discard  # TODO
 
-  calcNormals(result)
+  calcNormals(normals, vertices, faces)
+
+  result = initTriangleMesh(vertices = vertices, normals = normals,
+                            faces = faces,
+                            objectToWorld = mat4(1.0))
 
 
 when isMainModule:

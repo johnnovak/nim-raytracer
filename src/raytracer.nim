@@ -44,8 +44,8 @@ proc main() =
 #    width: 1200,
 #    height: 800,
 #    antialias: Antialias(kind: akMultiJittered, gridSize: 4),
-    width: 150,
-    height: 100,
+    width: 300,
+    height: 200,
     antialias: Antialias(kind: akNone),
     bias: 0.00000001,
     maxRayDepth: 5

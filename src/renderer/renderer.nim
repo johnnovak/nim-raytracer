@@ -40,7 +40,8 @@ proc castPrimaryRay(w, h: Natural, x, y, fov: float,
     cy = (1 - 2 * y / h.float) * f
 
   result = initRay(orig = cameraToWorld * DEFAULT_CAMERA_POS,
-                   dir = cameraToWorld * vec(cx, cy, -1).normalize)
+                   dir = cameraToWorld * vec(cx, cy, -1).normalize,
+                   x = x, y = y)
 
 
 proc trace(ray: Ray, objects: seq[Object], tNear: float,
@@ -59,6 +60,8 @@ proc trace(ray: Ray, objects: seq[Object], tNear: float,
     if tHit >= 0 and tHit < tmin:
       tmin = tHit
       objmin = obj
+      # need to propagate triangleHit back to the original ray
+      ray.triangleHit = rayO.triangleHit
       inc stats.numIntersectionHits
 
   result = (objmin, tmin)
@@ -81,7 +84,8 @@ proc shade(ray: Ray, objHit: Object, tHit: float, scene: Scene, opts: Options,
     if ray.triangleHit == nil:
       hitNormal = objHit.geometry.objectToWorld * objHit.geometry.normal(hitO)
     else:
-      hitNormal = TriangleMesh(objHit.geometry).normals[ray.triangleHit.normalIdx[0]]
+      let norm = TriangleMesh(objHit.geometry).normals[ray.triangleHit.normalIdx[0]]
+      hitNormal = objHit.geometry.objectToWorld * norm
 
     result = vec3(0.0)
 
@@ -133,6 +137,7 @@ proc calcPixelNoSampling(scene: Scene, opts: Options, x, y: Natural,
 
   inc stats.numPrimaryRays
   let (objHit, tHit) = trace(ray, scene.objects, tNear = Inf, stats)
+
   result = shade(ray, objHit, tHit, scene, opts, stats)
 
 
