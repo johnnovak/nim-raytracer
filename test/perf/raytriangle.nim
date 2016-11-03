@@ -1,4 +1,4 @@
-proc rayTriangleIntersect(r: Ray, v0, v1, v2: Vec3): float =
+proc rayTriangleIntersect(r: Ray, v0, v1, v2: Vec3): float32 =
   let
     v0v1 = v1 - v0
     v0v2 = v2 - v0

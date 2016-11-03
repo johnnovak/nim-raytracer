@@ -1,16 +1,19 @@
-type Vec3* = object {.byref.}
-  x*, y*, z*: float
+type Vec3* = object
+  x*, y*, z*: float32
 
-type Ray* = object {.byref.}
+type Ray* = object
   dir*, orig*: Vec3
 
-proc vec3*(x, y, z: float): Vec3 =
+proc vec3*(x, y, z: float32): Vec3 =
   Vec3(x: x, y: y, z: z)
 
 proc `-`*(a, b: Vec3): Vec3 =
   result = vec3(a.x - b.x, a.y - b.y, a.z - b.z)
 
-proc dot*(a, b: Vec3): float =
+proc `*`*(v: Vec3, s: float32): Vec3 =
+  result = vec3(v.x * s, v.y * s, v.z * s)
+
+proc dot*(a, b: Vec3): float32 =
   result = a.x * b.x + a.y * b.y + a.z * b.z
 
 proc cross*(a, b: Vec3): Vec3 =

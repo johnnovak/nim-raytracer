@@ -95,15 +95,23 @@ long ellapsedMs(struct timeval t0, struct timeval t1)
   return 1000 * (t1.tv_sec - t0.tv_sec) + (t1.tv_usec - t0.tv_usec) / 1000;
 }
 
-float noise()
-{
-  return (float) rand() / RAND_MAX / 100;
+Vec3 randomSphere() {
+  double r1 = (double) rand() / RAND_MAX;
+  double r2 = (double) rand() / RAND_MAX;
+  double lat = acos(2*r1 - 1) - M_PI/2;
+  double lon = 2*M_PI * r2;
+
+  return {cos(lat) * cos(lon),
+          cos(lat) * sin(lon),
+          sin(lat)};
 }
 
+const int NUM_RAYS = 100000;
 
 int main()
 {
   srand(time(NULL));
+
 
   Ray r;
   r.dir  = { 0.0, 0.0, -1.0 };
@@ -120,7 +128,7 @@ int main()
 
   for (int i = 0; i < N; ++i)
   {
-    r.orig = { 0.0 + noise(), 0.0 + noise(), 0.0 + noise()};
+    r.orig = { 0.0, 0.0, 0.0 };
     t += rayTriangleIntersect(&r, &v1, &v2, &v3);
   }
 
