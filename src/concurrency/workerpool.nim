@@ -14,7 +14,8 @@ type
   WorkerCommand = enum
     wcStop, wcStart, wcShutdown
 
-  WorkerState* = enum wsStopped, wsRunning, wsShutdown
+  WorkerState* = enum
+    wsStopped, wsRunning, wsShutdown
 
   WorkerEventKind* = enum
     wekInitialised, wekStarted, wekStopped,
@@ -204,7 +205,7 @@ proc initWorkerPool*[W, R](
   proc resultSentClosure() = resultSentDelegateCb(wp[])
 
   for i in 0..<nMax:
-    result.cmdChannels[i] = newSharedChannel[CmdChannel]()
+    result.cmdChannels[i] = newSharedChannel[WorkerCommand]()
     initSemaphore(result.semaphores[i])
 
     var args = WorkerArgs[W, R](

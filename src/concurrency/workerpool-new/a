@@ -1,0 +1,6 @@
+CC: test
+[1m[34m
+[Suite] [0mWorkerPool
+[0m[1m[32m  [OK] [0mIdle state transitions (immediate shutdown)
+[0m[1m[32m  [OK] [0mIdle state transitions (start, stop then shutdown)
+[0m

@@ -1,0 +1,31 @@
+digraph finite_state_machine {
+  rankdir=TB;
+  size="9,5";
+  nodesep=".5";
+  ranksep="0.5";
+
+  graph [ fontname="helvetica" ];
+  node [ fontname="helvetica" ];
+  edge [ fontname="helvetica", color="#666666", fontcolor="#666666" ];
+
+  node [ shape=ellipse, style=filled, fontcolor=white, color=white, fillcolor="#2f917a" ];
+  psUninitialised -> psStopped [ label = " init()" ];
+
+  node [ fillcolor="#bbbbbb", color="#bbbbbb", fontcolor="white" ]
+  psStarting, psStopping, psShuttingDown, psSettingNumActiveWorkers;
+
+  node [ fillcolor="#2f917a", color=white, fontcolor=white ];
+  psStopped -> psStarting [ label = " start()" ];
+  psStarted -> psStopping [ label = " stop()" ];
+  psStarted -> psShuttingDown [ label = " shutdown()" ];
+  psStopped -> psShuttingDown [ label = " shutdown()" ];
+  psStarted -> psSettingNumActiveWorkers [ label = " setNumActiveWorkers()" ];
+  psStopped -> psStopped [ label = " setNumActiveWorkers()" ];
+  psShutDown -> psUninitialised [ label = " deinit()" ];
+
+  edge [ color="#bbbbbb", fontcolor="#bbbbbb" ];
+  psStarting -> psStarted [ label = " ACK " ];
+  psStopping -> psStopped [ label = " ACK " ];
+  psShuttingDown -> psShutDown [ label = " ACK " ];
+  psSettingNumActiveWorkers -> psStarted  [ label = " ACK " ];
+}
